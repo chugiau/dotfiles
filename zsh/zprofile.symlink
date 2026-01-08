@@ -1,0 +1,8 @@
+export DOTFILES=$HOME/.dotfiles
+export EDITOR="nvim"
+export VISUAL="nvim"
+
+# 自訂 PATH
+export PATH="$HOME/bin:$PATH"
+export PATH="$DOTFILES/shellscripts:$PATH"
+
