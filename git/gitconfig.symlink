@@ -1,0 +1,14 @@
+[user]
+	name = Kán Chúgiâu
+	email = kan@chugiau.ninja
+	signingKey = 
+[gpg]
+	format = openpgp
+	program = gpg
+[commit]
+	gpgSign = false
+[tag]
+	forceSignAnnotated = false
+[gpg "ssh"]
+	program = 
+	allowedSignersFile = 
