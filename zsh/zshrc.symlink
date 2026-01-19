@@ -148,15 +148,30 @@ if command -v tofu >/dev/null 2>&1; then
   complete -C "$(command -v tofu)" tofu
 fi
 
+# VSCode terminal nshell integration
+[[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"
+
 # if fnm is installed, initialize it for zsh
 if command -v fnm >/dev/null 2>&1; then
   eval "$(fnm env --use-on-cd --shell zsh)"
 fi
 
+# AWS shell integration
+if command -v aws_completer >/dev/null 2>&1; then
+  complete -C aws_completer aws
+elif [ -x "/usr/local/bin/aws_completer" ]; then
+  complete -C "/usr/local/bin/aws_completer" aws
+elif [ -x "/opt/homebrew/bin/aws_completer" ]; then
+  complete -C "/opt/homebrew/bin/aws_completer" aws
+fi
+
 # if pnpm is installed, load its environment
 if command -v pnpm >/dev/null 2>&1; then
   export PNPM_HOME="$HOME/.local/share/pnpm"
-  export PATH="$PNPM_HOME:$PATH"
+  case ":$PATH:" in
+    *":$PNPM_HOME:"*) ;;
+    *) export PATH="$PNPM_HOME:$PATH" ;;
+  esac
 
   # Create completion for pnpm if not already present
   if [ ! -f "$HOME/.zsh/completions/_pnpm" ]; then
