@@ -1,7 +1,7 @@
 [user]
 	name = Kán Chúgiâu
 	email = kan@chugiau.ninja
-	signingKey = 
+	signingKey = A03F455EAEBC11E5E3F8F347E9179B1C9166521C
 [gpg]
 	format = openpgp
 	program = gpg
