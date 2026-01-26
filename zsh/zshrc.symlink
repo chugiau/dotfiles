@@ -143,5 +143,8 @@ source "$DOTFILES/zsh/modules/alias.zsh"
 source "$DOTFILES/zsh/modules/functions.zsh"
 source "$DOTFILES/zsh/modules/fzf.zsh"
 
-complete -C /usr/bin/terraform terraform
+# if tofu is installed, load its completion
+if command -v tofu >/dev/null 2>&1; then
+  complete -C "$(command -v tofu)" tofu
+fi
 
