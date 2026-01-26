@@ -148,3 +148,19 @@ if command -v tofu >/dev/null 2>&1; then
   complete -C "$(command -v tofu)" tofu
 fi
 
+# if fnm is installed, initialize it for zsh
+if command -v fnm >/dev/null 2>&1; then
+  eval "$(fnm env --use-on-cd --shell zsh)"
+fi
+
+# if pnpm is installed, load its environment
+if command -v pnpm >/dev/null 2>&1; then
+  export PNPM_HOME="$HOME/.local/share/pnpm"
+  export PATH="$PNPM_HOME:$PATH"
+
+  # Create completion for pnpm if not already present
+  if [ ! -f "$HOME/.zsh/completions/_pnpm" ]; then
+    mkdir -p "$HOME/.zsh/completions"
+    pnpm completion zsh > "$HOME/.zsh/completions/_pnpm"
+  fi
+fi
