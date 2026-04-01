@@ -22,3 +22,6 @@ export ENABLE_LSP_TOOL=1
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
+# Load local credentials (never committed)
+source "$DOTFILES/zsh/modules/secrets.zsh"
+
