@@ -1,0 +1,41 @@
+#!/bin/sh
+#
+# Pre-commit hook: blocks secrets from entering VCS
+#
+# 1. Rejects staged files matching secrets/*.env
+# 2. Scans staged diffs for known token patterns
+#
+
+# ── Check for staged secret files ────────────────────────────────────────────
+
+secret_files=$(git diff --cached --name-only | grep -E '^secrets/.*\.env$' | grep -v '\.env\.example$')
+
+if [ -n "$secret_files" ]; then
+  echo "\033[1;31m[pre-commit]\033[0m Blocked: secret files are staged:" >&2
+  echo "$secret_files" | sed 's/^/  /' >&2
+  echo "Run 'git reset HEAD <file>' to unstage." >&2
+  exit 1
+fi
+
+# ── Scan staged diffs for token patterns ─────────────────────────────────────
+
+# Only scan added/modified lines (lines starting with +, excluding +++ headers)
+diff_output=$(git diff --cached --diff-filter=ACMR -U0)
+
+patterns='(glpat-[0-9a-zA-Z_\-]{20})'           # GitLab
+patterns="$patterns"'|(ghp_[0-9a-zA-Z]{36})'     # GitHub PAT
+patterns="$patterns"'|(gho_[0-9a-zA-Z]{36})'     # GitHub OAuth
+patterns="$patterns"'|(ghs_[0-9a-zA-Z]{36})'     # GitHub App
+patterns="$patterns"'|(sk-[0-9a-zA-Z]{20,})'     # OpenAI
+patterns="$patterns"'|(AKIA[0-9A-Z]{16})'        # AWS Access Key
+patterns="$patterns"'|(xoxb-[0-9a-zA-Z\-]+)'     # Slack Bot
+patterns="$patterns"'|(xoxp-[0-9a-zA-Z\-]+)'     # Slack User
+
+matches=$(echo "$diff_output" | grep -E '^\+[^+]' | grep -oE "$patterns")
+
+if [ -n "$matches" ]; then
+  echo "\033[1;31m[pre-commit]\033[0m Blocked: possible secrets detected in staged changes:" >&2
+  echo "$matches" | sort -u | sed 's/^/  /' >&2
+  echo "Remove the secrets and try again, or use --no-verify to bypass." >&2
+  exit 1
+fi
