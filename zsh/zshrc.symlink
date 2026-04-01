@@ -149,6 +149,7 @@ source $ZSH/oh-my-zsh.sh
 source "$DOTFILES/zsh/modules/alias.zsh"
 source "$DOTFILES/zsh/modules/functions.zsh"
 source "$DOTFILES/zsh/modules/fzf.zsh"
+source "$DOTFILES/zsh/modules/pkg-quarantine.zsh"
 
 # if tofu is installed, load its completion
 if command -v tofu >/dev/null 2>&1; then
