@@ -15,3 +15,10 @@ export SDL_IM_MODULE=icitx
 export GLFW_IM_MODULE=ibus
 fcitx5 --disable=wayland -d --verbose '*'=0
 
+export BROWSER=brave.exe
+
+# Claude Code
+export ENABLE_LSP_TOOL=1
+
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+
