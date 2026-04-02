@@ -30,6 +30,16 @@ setup_secrets() {
   done
 }
 
+# 將 claude 設定檔連結到 ~/.claude/
+install_claude() {
+  mkdir -p "$HOME/.claude"
+  for src in "$DOTFILES/claude/"*; do
+    [ -f "$src" ] || continue
+    ln -sf "$src" "$HOME/.claude/$(basename "$src")"
+  done
+}
+
 create_symlinks
 install_hooks
 setup_secrets
+install_claude
