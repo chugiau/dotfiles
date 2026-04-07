@@ -68,13 +68,12 @@ if [ -n "$cwd" ] && command -v git >/dev/null 2>&1; then
         git_untracked=$(( git_untracked + 1 ))
       fi
     done < <(git -C "$cwd" --no-optional-locks status --porcelain 2>/dev/null)
-    # Count added/deleted lines across working tree changes
-    diff_stat=$(git -C "$cwd" --no-optional-locks diff --numstat 2>/dev/null)
-    diff_stat_cached=$(git -C "$cwd" --no-optional-locks diff --cached --numstat 2>/dev/null)
-    while IFS=$'\t' read -r added deleted _rest; do
-      [[ "$added" =~ ^[0-9]+$ ]]  && git_added=$(( git_added + added ))
-      [[ "$deleted" =~ ^[0-9]+$ ]] && git_deleted=$(( git_deleted + deleted ))
-    done <<< "$diff_stat"$'\n'"$diff_stat_cached"
+    if [ "$git_staged" -gt 0 ] || [ "$git_modified" -gt 0 ]; then
+      while IFS=$'\t' read -r added deleted _rest; do
+        [[ "$added" =~ ^[0-9]+$ ]]  && git_added=$(( git_added + added ))
+        [[ "$deleted" =~ ^[0-9]+$ ]] && git_deleted=$(( git_deleted + deleted ))
+      done < <(git -C "$cwd" --no-optional-locks diff --numstat 2>/dev/null; git -C "$cwd" --no-optional-locks diff --cached --numstat 2>/dev/null)
+    fi
   fi
 fi
 
@@ -207,7 +206,7 @@ total_duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
 active_secs=0
 active_time_str=""
 if [ -n "$total_duration_ms" ] && [[ "$total_duration_ms" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
-  active_secs=$(printf "%.0f" "$(echo "scale=0; $total_duration_ms / 1000" | bc)")
+  active_secs=$(( ${total_duration_ms%%.*} / 1000 ))
 fi
 
 if [ "$active_secs" -gt 0 ]; then
