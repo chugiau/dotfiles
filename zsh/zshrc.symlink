@@ -1,6 +1,6 @@
 # OPENSPEC:START
 # OpenSpec shell completions configuration
-fpath=("/home/kcgpk/.oh-my-zsh/custom/completions" $fpath)
+fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
 autoload -Uz compinit
 compinit
 # OPENSPEC:END
@@ -219,7 +219,7 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 
 
 # pnpm
-export PNPM_HOME="/home/kcgpk/.local/share/pnpm"
+export PNPM_HOME="$HOME/.local/share/pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
@@ -229,5 +229,6 @@ esac
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
 
 # peon-ping quick controls
-alias peon="bash /home/kcgpk/.claude/hooks/peon-ping/peon.sh"
-[ -f /home/kcgpk/.claude/hooks/peon-ping/completions.bash ] && source /home/kcgpk/.claude/hooks/peon-ping/completions.bash
+alias peon="bash $HOME/.claude/hooks/peon-ping/peon.sh"
+[ -f "$HOME/.claude/hooks/peon-ping/completions.bash" ] && source "$HOME/.claude/hooks/peon-ping/completions.bash"
+
