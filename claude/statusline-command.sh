@@ -49,6 +49,8 @@ git_branch=""
 git_staged=0
 git_modified=0
 git_untracked=0
+git_added=0
+git_deleted=0
 if [ -n "$cwd" ] && command -v git >/dev/null 2>&1; then
   git_branch=$(git -C "$cwd" --no-optional-locks symbolic-ref --short HEAD 2>/dev/null || git -C "$cwd" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
   if [ -n "$git_branch" ]; then
@@ -66,6 +68,13 @@ if [ -n "$cwd" ] && command -v git >/dev/null 2>&1; then
         git_untracked=$(( git_untracked + 1 ))
       fi
     done < <(git -C "$cwd" --no-optional-locks status --porcelain 2>/dev/null)
+    # Count added/deleted lines across working tree changes
+    diff_stat=$(git -C "$cwd" --no-optional-locks diff --numstat 2>/dev/null)
+    diff_stat_cached=$(git -C "$cwd" --no-optional-locks diff --cached --numstat 2>/dev/null)
+    while IFS=$'\t' read -r added deleted _rest; do
+      [[ "$added" =~ ^[0-9]+$ ]]  && git_added=$(( git_added + added ))
+      [[ "$deleted" =~ ^[0-9]+$ ]] && git_deleted=$(( git_deleted + deleted ))
+    done <<< "$diff_stat"$'\n'"$diff_stat_cached"
   fi
 fi
 
@@ -193,6 +202,24 @@ if [ -n "$session_id" ] && echo "$session_id" | grep -qE '^[a-zA-Z0-9_-]+$'; the
   fi
 fi
 
+# --- Active task time from cost.total_duration_ms ---
+total_duration_ms=$(echo "$input" | jq -r '.cost.total_duration_ms // empty')
+active_secs=0
+active_time_str=""
+if [ -n "$total_duration_ms" ] && [[ "$total_duration_ms" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+  active_secs=$(printf "%.0f" "$(echo "scale=0; $total_duration_ms / 1000" | bc)")
+fi
+
+if [ "$active_secs" -gt 0 ]; then
+  at_h=$(( active_secs / 3600 ))
+  at_m=$(( (active_secs % 3600) / 60 ))
+  if [ "$at_h" -gt 0 ]; then
+    active_time_str="${at_h}h ${at_m}m"
+  else
+    active_time_str="${at_m}m"
+  fi
+fi
+
 # --- Cost from JSON input ---
 cost=""
 total_cost=$(echo "$input" | jq -r '.cost.total_cost_usd // empty')
@@ -215,10 +242,18 @@ git_status_str=""
 [ "$git_staged" -gt 0 ]   && git_status_str="${git_status_str} ${GREEN}+${git_staged}${RESET}"
 [ "$git_modified" -gt 0 ] && git_status_str="${git_status_str} ${YELLOW}~${git_modified}${RESET}"
 [ "$git_untracked" -gt 0 ] && git_status_str="${git_status_str} ${DIM}?${git_untracked}${RESET}"
+# Added/deleted line counts
+if [ "$git_added" -gt 0 ] || [ "$git_deleted" -gt 0 ]; then
+  git_status_str="${git_status_str} ${GREEN}+${git_added}${RESET}/${RED}-${git_deleted}${RESET} lines"
+fi
 [ -n "$git_status_str" ] && line1="${line1}${git_status_str}"
 line1="${line1} | "
-# Session time and tokens
-line1="${line1}⏱ ${session_mins}m · ${total_tokens} tokens"
+# Session time (total elapsed) + active task time + tokens
+line1="${line1}⏱ ${session_mins}m"
+if [ -n "$active_time_str" ]; then
+  line1="${line1} (active: ${CYAN}${active_time_str}${RESET})"
+fi
+line1="${line1} · ${total_tokens} tokens"
 # Sub-agents
 if [ "$subagent_count" -gt 0 ] 2>/dev/null; then
   line1="${line1} | ${CYAN}🤖 ${subagent_count} sub-agent$([ "$subagent_count" -gt 1 ] && echo s)${RESET}"
@@ -244,8 +279,8 @@ fi
 # --- Cache hit rate and current call token stats ---
 cache_stats=""
 if [ -n "$cur_input" ]; then
-  # Cache hit rate: cache_read / (input + cache_read) * 100
-  total_for_cache=$(( cur_input + cur_cache_read ))
+  total_for_cache=$(( cur_input + cur_cache_write + cur_cache_read ))
+
   if [ "$total_for_cache" -gt 0 ]; then
     cache_hit_pct=$(( (cur_cache_read * 100) / total_for_cache ))
   else
@@ -259,7 +294,7 @@ if [ -n "$cur_input" ]; then
   fi
   cur_input_fmt=$(compact_tokens "$cur_input")
   cur_output_fmt=$(compact_tokens "$cur_output")
-  cache_stats="cache: ${cache_color}${cache_hit_pct}%${RESET} in: ${cur_input_fmt} out: ${cur_output_fmt}"
+  cache_stats="cache: ${cache_color}${cache_hit_pct}%${RESET} | in: ${cur_input_fmt} out: ${cur_output_fmt}"
 fi
 
 # --- Line 3 ---
