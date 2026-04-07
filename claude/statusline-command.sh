@@ -60,9 +60,13 @@ make_bar() {
 compact_tokens() {
   local n="${1:-0}"
   if [[ "${n}" -ge 1000000 ]]; then
-    printf "%.1fm" "$(echo "scale=1; ${n} / 1000000" | bc)"
+    local whole=$(( n / 1000000 ))
+    local frac=$(( (n % 1000000) / 100000 ))
+    printf "%d.%dm" "${whole}" "${frac}"
   elif [[ "${n}" -ge 1000 ]]; then
-    printf "%.1fk" "$(echo "scale=1; ${n} / 1000" | bc)"
+    local whole=$(( n / 1000 ))
+    local frac=$(( (n % 1000) / 100 ))
+    printf "%d.%dk" "${whole}" "${frac}"
   else
     printf "%s" "${n}"
   fi
