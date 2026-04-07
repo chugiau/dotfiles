@@ -21,6 +21,10 @@ used_pct=$(echo "$input" | jq -r '.context_window.used_percentage // empty')
 remaining_pct=$(echo "$input" | jq -r '.context_window.remaining_percentage // empty')
 total_input=$(echo "$input" | jq -r '.context_window.total_input_tokens // 0')
 total_output=$(echo "$input" | jq -r '.context_window.total_output_tokens // 0')
+cur_input=$(echo "$input" | jq -r '.context_window.current_usage.input_tokens // empty')
+cur_output=$(echo "$input" | jq -r '.context_window.current_usage.output_tokens // empty')
+cur_cache_write=$(echo "$input" | jq -r '.context_window.current_usage.cache_creation_input_tokens // 0')
+cur_cache_read=$(echo "$input" | jq -r '.context_window.current_usage.cache_read_input_tokens // 0')
 
 five_hour_pct=$(echo "$input" | jq -r '.rate_limits.five_hour.used_percentage // empty')
 five_hour_reset=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty')
@@ -32,6 +36,7 @@ session_id=$(echo "$input" | jq -r '.session_id // ""')
 
 # --- ANSI colors ---
 GREEN='\033[0;32m'
+RED='\033[0;31m'
 YELLOW='\033[0;33m'
 MAGENTA='\033[0;35m'
 CYAN='\033[0;36m'
@@ -96,6 +101,20 @@ make_bar() {
   for i in $(seq 1 $filled); do bar="${bar}█"; done
   for i in $(seq 1 $empty); do bar="${bar}░"; done
   printf "%s" "$bar"
+}
+
+# --- Compact token notation function ---
+# Usage: compact_tokens <number>
+# Returns: e.g. 170234 -> 170.2k, 1234567 -> 1.2m, 999 -> 999
+compact_tokens() {
+  local n=${1:-0}
+  if [ "$n" -ge 1000000 ]; then
+    printf "%.1fm" "$(echo "scale=1; $n / 1000000" | bc)"
+  elif [ "$n" -ge 1000 ]; then
+    printf "%.1fk" "$(echo "scale=1; $n / 1000" | bc)"
+  else
+    printf "%s" "$n"
+  fi
 }
 
 # --- Context bar ---
@@ -222,9 +241,31 @@ fi
 # Version
 [ -n "$version" ] && line2="${line2} · current: ${version}"
 
+# --- Cache hit rate and current call token stats ---
+cache_stats=""
+if [ -n "$cur_input" ]; then
+  # Cache hit rate: cache_read / (input + cache_read) * 100
+  total_for_cache=$(( cur_input + cur_cache_read ))
+  if [ "$total_for_cache" -gt 0 ]; then
+    cache_hit_pct=$(( (cur_cache_read * 100) / total_for_cache ))
+  else
+    cache_hit_pct=0
+  fi
+  # Color: red if below 80%, green if >= 80%
+  if [ "$cache_hit_pct" -ge 80 ]; then
+    cache_color="$GREEN"
+  else
+    cache_color="$RED"
+  fi
+  cur_input_fmt=$(compact_tokens "$cur_input")
+  cur_output_fmt=$(compact_tokens "$cur_output")
+  cache_stats="cache: ${cache_color}${cache_hit_pct}%${RESET} in: ${cur_input_fmt} out: ${cur_output_fmt}"
+fi
+
 # --- Line 3 ---
 line3=""
 line3="${line3}${claude_md_count} CLAUDE.md | 🪝 ${hooks_count} hooks"
+[ -n "$cache_stats" ] && line3="${line3} | ${cache_stats}"
 [ -n "$cost" ] && line3="${line3} | 💰 ${cost}"
 
 # --- Output ---

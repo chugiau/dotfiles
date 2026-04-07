@@ -1,8 +1,7 @@
 # ssh-agent — auto-start and persist across shells
 #
 # Reuses a running agent via a cached env file. Starts a new one if
-# the cached agent is stale or missing. Automatically adds all
-# private keys found in ~/.ssh/.
+# the cached agent is stale or missing.
 
 _ssh_agent_env="$HOME/.ssh/agent.env"
 
@@ -23,20 +22,8 @@ _ssh_agent_start() {
   source "$_ssh_agent_env" &>/dev/null
 }
 
-_ssh_agent_add_keys() {
-  # Only add if the agent has zero identities
-  ssh-add -l &>/dev/null
-  [[ $? -ne 1 ]] && return
-
-  for key in "$HOME"/.ssh/id_*; do
-    [[ -f "$key" && "$key" != *.pub ]] || continue
-    ssh-add "$key" 2>/dev/null
-  done
-}
-
 # --- main ---
 _ssh_agent_load_env
 if ! _ssh_agent_running; then
   _ssh_agent_start
 fi
-_ssh_agent_add_keys
