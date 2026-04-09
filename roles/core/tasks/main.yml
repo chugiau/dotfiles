@@ -19,9 +19,11 @@
 
 - name: "core | Verify core tools are available"
   ansible.builtin.command:
-    cmd: "{{ item }} --version"
+    cmd: "{{ core_tool }} --version"
   loop:
     - git
     - jq
     - gpg
+  loop_control:
+    loop_var: core_tool
   changed_when: false

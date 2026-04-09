@@ -19,22 +19,25 @@
 
 - name: "cli_tools | Verify tools are available"
   ansible.builtin.command:
-    cmd: "which {{ item }}"
+    cmd: "which {{ cli_tool }}"
   loop:
     - bat
     - eza
     - lazygit
+  loop_control:
+    loop_var: cli_tool
   changed_when: false
   failed_when: false
   register: cli_tools_verify
 
 - name: "cli_tools | Report missing tools"
   ansible.builtin.debug:
-    msg: "{{ item.item }} is not in PATH"
+    msg: "{{ cli_result.cli_tool }} is not in PATH"
   loop: "{{ cli_tools_verify.results }}"
   loop_control:
-    label: "{{ item.item }}"
-  when: item.rc != 0
+    loop_var: cli_result
+    label: "{{ cli_result.cli_tool }}"
+  when: cli_result.rc != 0
 
 - name: "cli_tools | Update via Homebrew"
   community.general.homebrew:
