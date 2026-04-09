@@ -1,0 +1,15 @@
+---
+- name: "core | Archlinux | Install core system packages"
+  community.general.pacman:
+    name:
+      - git
+      - git-lfs
+      - jq
+      - openssh
+      - gnupg
+      - curl
+      - wget
+      - unzip
+    state: present
+    update_cache: true
+  become: true
