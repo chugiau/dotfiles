@@ -1,0 +1,4 @@
+---
+- name: "neovim | placeholder"
+  ansible.builtin.debug:
+    msg: "Role neovim not yet implemented"

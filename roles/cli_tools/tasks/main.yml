@@ -1,0 +1,4 @@
+---
+- name: "cli_tools | placeholder"
+  ansible.builtin.debug:
+    msg: "Role cli_tools not yet implemented"

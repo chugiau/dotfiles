@@ -1,0 +1,4 @@
+---
+- name: "zsh | placeholder"
+  ansible.builtin.debug:
+    msg: "Role zsh not yet implemented"

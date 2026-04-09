@@ -1,0 +1,4 @@
+---
+- name: "core | placeholder"
+  ansible.builtin.debug:
+    msg: "Role core not yet implemented"

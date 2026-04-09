@@ -1,5 +1,9 @@
 **/.env
 **/*.pyc
+
+# Ansible local config (user-specific overrides)
+group_vars/all.yml
+/tmp/ansible_facts_cache/
 *.test/
 *.ignore/
 *.nosync/
