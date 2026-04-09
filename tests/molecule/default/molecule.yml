@@ -1,0 +1,26 @@
+---
+driver:
+  name: docker
+platforms:
+  - name: ubuntu-noble
+    image: ubuntu:24.04
+    pre_build_image: true
+    command: /bin/bash -c "while true; do sleep 1; done"
+    privileged: true
+provisioner:
+  name: ansible
+  playbooks:
+    converge: converge.yml
+    verify: verify.yml
+  inventory:
+    host_vars:
+      ubuntu-noble:
+        pm_preference: system
+        default_roles:
+          - core
+          - dotfiles
+        dotfiles_dir: /home/testuser/.dotfiles
+  env:
+    ANSIBLE_ROLES_PATH: ../../../roles
+verifier:
+  name: ansible
