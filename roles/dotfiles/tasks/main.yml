@@ -1,4 +1,124 @@
 ---
-- name: "dotfiles | placeholder"
-  ansible.builtin.debug:
-    msg: "Role dotfiles not yet implemented"
+# --- Symlinks: *.symlink → ~/.basename ---
+
+- name: "dotfiles | Find all *.symlink files"
+  ansible.builtin.find:
+    paths: "{{ dotfiles_dir }}"
+    patterns: "*.symlink"
+    recurse: true
+    file_type: any
+  register: symlink_files
+
+- name: "dotfiles | Create dotfile symlinks"
+  ansible.builtin.file:
+    src: "{{ item.path }}"
+    dest: "{{ ansible_env.HOME }}/.{{ item.path | basename | regex_replace('\\.symlink$', '') }}"
+    state: link
+    force: true
+  loop: "{{ symlink_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }} → ~/.{{ item.path | basename | regex_replace('\\.symlink$', '') }}"
+
+# --- Claude Code config ---
+
+- name: "dotfiles | Ensure ~/.claude directory exists"
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.claude"
+    state: directory
+    mode: "0755"
+
+- name: "dotfiles | Find claude config files"
+  ansible.builtin.find:
+    paths: "{{ dotfiles_dir }}/claude"
+    file_type: file
+  register: claude_files
+
+- name: "dotfiles | Link claude configs"
+  ansible.builtin.file:
+    src: "{{ item.path }}"
+    dest: "{{ ansible_env.HOME }}/.claude/{{ item.path | basename }}"
+    state: link
+    force: true
+  loop: "{{ claude_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+
+# --- Git hooks ---
+
+- name: "dotfiles | Ensure .git/hooks directory exists"
+  ansible.builtin.file:
+    path: "{{ dotfiles_dir }}/.git/hooks"
+    state: directory
+    mode: "0755"
+
+- name: "dotfiles | Find git hook files"
+  ansible.builtin.find:
+    paths: "{{ dotfiles_dir }}/git/hooks"
+    file_type: file
+  register: hook_files
+
+- name: "dotfiles | Install git hooks"
+  ansible.builtin.file:
+    src: "{{ item.path }}"
+    dest: "{{ dotfiles_dir }}/.git/hooks/{{ item.path | basename }}"
+    state: link
+    force: true
+  loop: "{{ hook_files.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+
+# --- Secrets from templates ---
+
+- name: "dotfiles | Find secrets templates"
+  ansible.builtin.find:
+    paths: "{{ dotfiles_dir }}/secrets"
+    patterns: "*.env.example"
+  register: secret_templates
+
+- name: "dotfiles | Create secrets from templates (won't overwrite existing)"
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "{{ item.path | regex_replace('\\.example$', '') }}"
+    mode: "0600"
+    force: false
+  loop: "{{ secret_templates.files }}"
+  loop_control:
+    label: "{{ item.path | basename | regex_replace('\\.example$', '') }}"
+
+# --- Alias fixups (batcat→bat, fdfind→fd, etc.) ---
+
+- name: "dotfiles | Ensure ~/.local/bin exists"
+  ansible.builtin.file:
+    path: "{{ ansible_env.HOME }}/.local/bin"
+    state: directory
+    mode: "0755"
+
+- name: "dotfiles | Check alias fixup sources"
+  ansible.builtin.stat:
+    path: "{{ item.check }}"
+  loop: "{{ dotfiles_alias_fixups }}"
+  loop_control:
+    label: "{{ item.check }}"
+  register: alias_checks
+
+- name: "dotfiles | Check alias fixup targets already exist"
+  ansible.builtin.command:
+    cmd: "which {{ item.item.link | basename }}"
+  loop: "{{ alias_checks.results }}"
+  loop_control:
+    label: "{{ item.item.link | basename }}"
+  register: alias_existing
+  changed_when: false
+  failed_when: false
+
+- name: "dotfiles | Create alias symlinks where needed"
+  ansible.builtin.file:
+    src: "{{ item.0.item.check }}"
+    dest: "{{ item.0.item.link }}"
+    state: link
+  loop: "{{ alias_checks.results | zip(alias_existing.results) | list }}"
+  loop_control:
+    label: "{{ item.0.item.link | basename }}"
+  when:
+    - item.0.stat.exists
+    - item.1.rc != 0
