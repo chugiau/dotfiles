@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# dotfiles — CLI wrapper for the Ansible-based dotfiles provisioning system.
+#
+# Usage:
+#   dotfiles install               Run full install (all roles)
+#   dotfiles install zsh neovim    Install specific roles only
+#   dotfiles update                Update oh-my-zsh, p10k, brew, plugins
+#   dotfiles link                  Re-create all symlinks
+#   dotfiles doctor                Check that all tools are installed
+#   dotfiles edit                  Open group_vars/all.yml in $EDITOR
+#   dotfiles check                 Dry-run (--check --diff)
+
+readonly DOTFILES_DIR="${HOME}/.dotfiles"
+
+# --- Helpers ---
+
+log_ok()   { printf '  \033[0;32m✓\033[0m %s\n' "$*"; }
+log_fail() { printf '  \033[0;31m✗\033[0m %s\n' "$*"; }
+
+usage() {
+  cat <<'EOF'
+Usage: dotfiles <command> [args]
+
+Commands:
+  install [role...]   Run full playbook, or specific roles via tags
+  update              Update oh-my-zsh, p10k, brew packages, nvim plugins
+  link                Re-create all symlinks (runs dotfiles role)
+  doctor              Verify all expected tools are installed
+  check               Dry-run the playbook (--check --diff)
+  edit                Open group_vars/all.yml in $EDITOR
+
+Examples:
+  dotfiles install              # Full setup
+  dotfiles install zsh neovim   # Just zsh and neovim
+  dotfiles update               # Update all managed tools
+  dotfiles doctor               # Health check
+EOF
+}
+
+# --- Commands ---
+
+cmd_install() {
+  cd "${DOTFILES_DIR}"
+  if [ $# -gt 0 ]; then
+    local tags
+    tags=$(IFS=,; echo "$*")
+    ansible-playbook site.yml --tags "${tags}"
+  else
+    ansible-playbook site.yml
+  fi
+}
+
+cmd_update() {
+  cd "${DOTFILES_DIR}"
+  ansible-playbook site.yml --tags update
+}
+
+cmd_link() {
+  cd "${DOTFILES_DIR}"
+  ansible-playbook site.yml --tags dotfiles
+}
+
+cmd_check() {
+  cd "${DOTFILES_DIR}"
+  ansible-playbook site.yml --check --diff "$@"
+}
+
+cmd_doctor() {
+  local ok=0 fail=0
+
+  echo "Checking installed tools..."
+  echo ""
+
+  local tools=(git zsh nvim jq bat eza lazygit gpg ssh git-lfs)
+  for cmd in "${tools[@]}"; do
+    if command -v "${cmd}" &>/dev/null; then
+      log_ok "${cmd} ($(command -v "${cmd}"))"
+      ((ok++)) || true
+    else
+      log_fail "${cmd} NOT FOUND"
+      ((fail++)) || true
+    fi
+  done
+
+  echo ""
+
+  # neovim version check
+  if command -v nvim &>/dev/null; then
+    local ver
+    ver=$(nvim --version | head -1 | grep -oP '\d+\.\d+' || echo "unknown")
+    if [ "${ver}" != "unknown" ] && awk "BEGIN{exit (${ver} < 0.11)}" 2>/dev/null; then
+      log_ok "neovim version ${ver} (>= 0.11)"
+    else
+      log_fail "neovim version ${ver} (need >= 0.11)"
+      ((fail++)) || true
+    fi
+  fi
+
+  # oh-my-zsh
+  if [ -d "${HOME}/.oh-my-zsh" ]; then
+    log_ok "oh-my-zsh installed"
+  else
+    log_fail "oh-my-zsh NOT FOUND"
+    ((fail++)) || true
+  fi
+
+  # powerlevel10k
+  if [ -d "${HOME}/.oh-my-zsh/custom/themes/powerlevel10k" ]; then
+    log_ok "powerlevel10k installed"
+  else
+    log_fail "powerlevel10k NOT FOUND"
+    ((fail++)) || true
+  fi
+
+  # NvChad / nvim config
+  if [ -f "${HOME}/.config/nvim/init.lua" ]; then
+    log_ok "neovim config present"
+  else
+    log_fail "neovim config NOT FOUND (~/.config/nvim/init.lua)"
+    ((fail++)) || true
+  fi
+
+  echo ""
+  echo "Result: ${ok} ok, ${fail} failed"
+  [ "${fail}" -eq 0 ]
+}
+
+cmd_edit() {
+  "${EDITOR:-nvim}" "${DOTFILES_DIR}/group_vars/all.yml"
+}
+
+# --- Dispatch ---
+
+case "${1:-}" in
+  install) shift; cmd_install "$@" ;;
+  update)  cmd_update ;;
+  link)    cmd_link ;;
+  check)   shift; cmd_check "$@" ;;
+  doctor)  cmd_doctor ;;
+  edit)    cmd_edit ;;
+  -h|--help|help|"") usage ;;
+  *)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
+esac
