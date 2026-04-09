@@ -1,4 +1,46 @@
 ---
-- name: "cli_tools | placeholder"
+- name: "cli_tools | Install via Homebrew"
+  community.general.homebrew:
+    name: "{{ cli_tools_brew }}"
+    state: present
+  environment:
+    PATH: "{{ brew_prefix }}/bin:{{ ansible_env.PATH }}"
+  when: pm_preference == "brew" and (brew_available | default(false) | bool)
+
+- name: "cli_tools | Check for distro tasks: {{ ansible_os_family }}"
+  ansible.builtin.stat:
+    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
+  register: cli_tools_distro_config
+  when: pm_preference == "system"
+
+- name: "cli_tools | Run distro tasks: {{ ansible_os_family }}"
+  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+  when: pm_preference == "system" and (cli_tools_distro_config.stat.exists | default(false))
+
+- name: "cli_tools | Verify tools are available"
+  ansible.builtin.command:
+    cmd: "which {{ item }}"
+  loop:
+    - bat
+    - eza
+    - lazygit
+  changed_when: false
+  failed_when: false
+  register: cli_tools_verify
+
+- name: "cli_tools | Report missing tools"
   ansible.builtin.debug:
-    msg: "Role cli_tools not yet implemented"
+    msg: "{{ item.item }} is not in PATH"
+  loop: "{{ cli_tools_verify.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.rc != 0
+
+- name: "cli_tools | Update via Homebrew"
+  community.general.homebrew:
+    name: "{{ cli_tools_brew }}"
+    state: latest
+  environment:
+    PATH: "{{ brew_prefix }}/bin:{{ ansible_env.PATH }}"
+  when: pm_preference == "brew" and (brew_available | default(false) | bool)
+  tags: [update, never]

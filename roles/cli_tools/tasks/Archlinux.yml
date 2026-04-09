@@ -1,0 +1,10 @@
+---
+- name: "cli_tools | Archlinux | Install CLI tools"
+  community.general.pacman:
+    name:
+      - bat
+      - eza
+      - lazygit
+    state: present
+    update_cache: true
+  become: true
