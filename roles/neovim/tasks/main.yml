@@ -1,4 +1,62 @@
 ---
-- name: "neovim | placeholder"
-  ansible.builtin.debug:
-    msg: "Role neovim not yet implemented"
+# Install neovim: Homebrew on Linux (system repos too old on most distros),
+# or distro PM if the version is new enough (Arch, Ubuntu 26.04+).
+- name: "neovim | Check for distro tasks: {{ ansible_os_family }}"
+  ansible.builtin.stat:
+    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
+  register: neovim_distro_config
+
+- name: "neovim | Run distro tasks: {{ ansible_os_family }}"
+  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+  when: neovim_distro_config.stat.exists
+
+# Version check
+- name: "neovim | Get installed version"
+  ansible.builtin.command:
+    cmd: nvim --version
+  register: nvim_ver_raw
+  changed_when: false
+  check_mode: false
+
+- name: "neovim | Parse neovim version"
+  ansible.builtin.set_fact:
+    nvim_ver: "{{ nvim_ver_raw.stdout_lines[0] | regex_search('\\d+\\.\\d+') | default('0.0') }}"
+
+- name: "neovim | Assert version >= {{ neovim_min_version }}"
+  ansible.builtin.assert:
+    that: nvim_ver is version(neovim_min_version, '>=')
+    fail_msg: >-
+      neovim {{ nvim_ver }} is too old (need >= {{ neovim_min_version }}).
+      Install via Homebrew or use a newer distro.
+    success_msg: "neovim {{ nvim_ver }} meets minimum requirement"
+
+# NvChad via starter template (or user's own fork)
+- name: "neovim | Check if nvim config exists"
+  ansible.builtin.stat:
+    path: "{{ nvim_config_dir }}/init.lua"
+  register: nvim_config_check
+
+- name: "neovim | Clone nvim config"
+  ansible.builtin.git:
+    repo: "{{ nvim_repo }}"
+    dest: "{{ nvim_config_dir }}"
+    version: main
+  when: not nvim_config_check.stat.exists
+  register: nvchad_clone
+
+- name: "neovim | Install plugins (headless)"
+  ansible.builtin.shell:
+    cmd: nvim --headless "+Lazy! sync" +qa
+  environment:
+    PATH: "{{ brew_prefix | default('/usr/local') }}/bin:{{ ansible_env.PATH }}"
+  when: nvchad_clone is changed
+  changed_when: true
+
+# Update tasks
+- name: "neovim | Update plugins (headless)"
+  ansible.builtin.shell:
+    cmd: nvim --headless "+Lazy! update" +qa
+  environment:
+    PATH: "{{ brew_prefix | default('/usr/local') }}/bin:{{ ansible_env.PATH }}"
+  changed_when: false
+  tags: [update, never]

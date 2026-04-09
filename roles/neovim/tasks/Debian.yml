@@ -1,0 +1,23 @@
+---
+# Ubuntu 24.04 and earlier ship neovim < 0.11. Use Homebrew.
+# Ubuntu 26.04+ has neovim 0.11+ in the default repos.
+- name: "neovim | Debian | Install neovim via apt (26.04+)"
+  ansible.builtin.apt:
+    name: neovim
+    state: present
+  become: true
+  when:
+    - pm_preference == "system"
+    - ansible_distribution == "Ubuntu"
+    - ansible_distribution_version is version('26.04', '>=')
+
+- name: "neovim | Debian | Install neovim via Homebrew (older Ubuntu/Debian)"
+  community.general.homebrew:
+    name: neovim
+    state: present
+  environment:
+    PATH: "{{ brew_prefix }}/bin:{{ ansible_env.PATH }}"
+  when: >-
+    pm_preference == "brew"
+    or ansible_distribution != "Ubuntu"
+    or ansible_distribution_version is version('26.04', '<')
