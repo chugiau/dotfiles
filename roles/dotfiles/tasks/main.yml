@@ -12,7 +12,7 @@
 - name: "dotfiles | Create dotfile symlinks"
   ansible.builtin.file:
     src: "{{ item.path }}"
-    dest: "{{ ansible_env.HOME }}/.{{ item.path | basename | regex_replace('\\.symlink$', '') }}"
+    dest: "{{ ansible_facts.env.HOME }}/.{{ item.path | basename | regex_replace('\\.symlink$', '') }}"
     state: link
     force: true
   loop: "{{ symlink_files.files }}"
@@ -23,7 +23,7 @@
 
 - name: "dotfiles | Ensure ~/.claude directory exists"
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.claude"
+    path: "{{ ansible_facts.env.HOME }}/.claude"
     state: directory
     mode: "0755"
 
@@ -36,7 +36,7 @@
 - name: "dotfiles | Link claude configs"
   ansible.builtin.file:
     src: "{{ item.path }}"
-    dest: "{{ ansible_env.HOME }}/.claude/{{ item.path | basename }}"
+    dest: "{{ ansible_facts.env.HOME }}/.claude/{{ item.path | basename }}"
     state: link
     force: true
   loop: "{{ claude_files.files }}"
@@ -89,7 +89,7 @@
 
 - name: "dotfiles | Ensure ~/.local/bin exists"
   ansible.builtin.file:
-    path: "{{ ansible_env.HOME }}/.local/bin"
+    path: "{{ ansible_facts.env.HOME }}/.local/bin"
     state: directory
     mode: "0755"
 

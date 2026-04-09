@@ -97,5 +97,6 @@
       ansible.builtin.include_role:
         name: dotfiles
       vars:
-        ansible_env:
-          HOME: /home/testuser
+        ansible_facts:
+          env:
+            HOME: /home/testuser

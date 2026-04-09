@@ -1,12 +1,12 @@
 ---
 # Install zsh via system PM (must be in /etc/shells for chsh)
-- name: "zsh | Check for distro tasks: {{ ansible_os_family }}"
+- name: "zsh | Check for distro tasks: {{ ansible_facts.os_family }}"
   ansible.builtin.stat:
-    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
+    path: "{{ role_path }}/tasks/{{ ansible_facts.os_family }}.yml"
   register: zsh_distro_config
 
-- name: "zsh | Run distro tasks: {{ ansible_os_family }}"
-  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+- name: "zsh | Run distro tasks: {{ ansible_facts.os_family }}"
+  ansible.builtin.include_tasks: "{{ ansible_facts.os_family }}.yml"
   when: zsh_distro_config.stat.exists
 
 # oh-my-zsh (unattended — no TUI, no chsh, no auto-run)
@@ -40,7 +40,7 @@
 
 - name: "zsh | Set zsh as default shell"
   ansible.builtin.user:
-    name: "{{ ansible_user_id }}"
+    name: "{{ ansible_facts.user_id }}"
     shell: "{{ zsh_which.stdout }}"
   become: true
 

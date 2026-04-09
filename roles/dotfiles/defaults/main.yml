@@ -1,10 +1,10 @@
 ---
-dotfiles_dir: "{{ ansible_env.HOME }}/.dotfiles"
+dotfiles_dir: "{{ ansible_facts.env.HOME }}/.dotfiles"
 
 # Commands that may have a different binary name on some distros.
 # Format: { check: "/path/to/actual", link: "~/.local/bin/alias" }
 dotfiles_alias_fixups:
   - check: /usr/bin/batcat
-    link: "{{ ansible_env.HOME }}/.local/bin/bat"
+    link: "{{ ansible_facts.env.HOME }}/.local/bin/bat"
   - check: /usr/bin/fdfind
-    link: "{{ ansible_env.HOME }}/.local/bin/fd"
+    link: "{{ ansible_facts.env.HOME }}/.local/bin/fd"

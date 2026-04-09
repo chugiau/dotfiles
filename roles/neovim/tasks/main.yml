@@ -1,13 +1,13 @@
 ---
 # Install neovim: Homebrew on Linux (system repos too old on most distros),
 # or distro PM if the version is new enough (Arch, Ubuntu 26.04+).
-- name: "neovim | Check for distro tasks: {{ ansible_os_family }}"
+- name: "neovim | Check for distro tasks: {{ ansible_facts.os_family }}"
   ansible.builtin.stat:
-    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
+    path: "{{ role_path }}/tasks/{{ ansible_facts.os_family }}.yml"
   register: neovim_distro_config
 
-- name: "neovim | Run distro tasks: {{ ansible_os_family }}"
-  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+- name: "neovim | Run distro tasks: {{ ansible_facts.os_family }}"
+  ansible.builtin.include_tasks: "{{ ansible_facts.os_family }}.yml"
   when: neovim_distro_config.stat.exists
 
 # Version check
@@ -31,10 +31,23 @@
     success_msg: "neovim {{ nvim_ver }} meets minimum requirement"
 
 # NvChad via starter template (or user's own fork)
-- name: "neovim | Check if nvim config exists"
+- name: "neovim | Check if nvim config has init.lua"
   ansible.builtin.stat:
     path: "{{ nvim_config_dir }}/init.lua"
   register: nvim_config_check
+
+- name: "neovim | Check if nvim config dir exists"
+  ansible.builtin.stat:
+    path: "{{ nvim_config_dir }}"
+  register: nvim_dir_check
+
+- name: "neovim | Back up existing nvim config (no init.lua — old/incompatible setup)"
+  ansible.builtin.command:
+    cmd: "mv {{ nvim_config_dir }} {{ nvim_config_dir }}.backup.{{ ansible_facts.date_time.epoch }}"
+  when:
+    - not nvim_config_check.stat.exists
+    - nvim_dir_check.stat.exists
+    - nvim_dir_check.stat.isdir
 
 - name: "neovim | Clone nvim config"
   ansible.builtin.git:
@@ -48,7 +61,7 @@
   ansible.builtin.shell:
     cmd: nvim --headless "+Lazy! sync" +qa
   environment:
-    PATH: "{{ brew_prefix | default('/usr/local') }}/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ brew_prefix | default('/usr/local') }}/bin:{{ ansible_facts.env.PATH }}"
   when: nvchad_clone is changed
   changed_when: true
 
@@ -57,6 +70,6 @@
   ansible.builtin.shell:
     cmd: nvim --headless "+Lazy! update" +qa
   environment:
-    PATH: "{{ brew_prefix | default('/usr/local') }}/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ brew_prefix | default('/usr/local') }}/bin:{{ ansible_facts.env.PATH }}"
   changed_when: false
   tags: [update, never]

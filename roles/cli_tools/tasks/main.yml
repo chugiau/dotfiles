@@ -4,17 +4,17 @@
     name: "{{ cli_tools_brew }}"
     state: present
   environment:
-    PATH: "{{ brew_prefix }}/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ brew_prefix }}/bin:{{ ansible_facts.env.PATH }}"
   when: pm_preference == "brew" and (brew_available | default(false) | bool)
 
-- name: "cli_tools | Check for distro tasks: {{ ansible_os_family }}"
+- name: "cli_tools | Check for distro tasks: {{ ansible_facts.os_family }}"
   ansible.builtin.stat:
-    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
+    path: "{{ role_path }}/tasks/{{ ansible_facts.os_family }}.yml"
   register: cli_tools_distro_config
   when: pm_preference == "system"
 
-- name: "cli_tools | Run distro tasks: {{ ansible_os_family }}"
-  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+- name: "cli_tools | Run distro tasks: {{ ansible_facts.os_family }}"
+  ansible.builtin.include_tasks: "{{ ansible_facts.os_family }}.yml"
   when: pm_preference == "system" and (cli_tools_distro_config.stat.exists | default(false))
 
 - name: "cli_tools | Verify tools are available"
@@ -41,6 +41,6 @@
     name: "{{ cli_tools_brew }}"
     state: latest
   environment:
-    PATH: "{{ brew_prefix }}/bin:{{ ansible_env.PATH }}"
+    PATH: "{{ brew_prefix }}/bin:{{ ansible_facts.env.PATH }}"
   when: pm_preference == "brew" and (brew_available | default(false) | bool)
   tags: [update, never]

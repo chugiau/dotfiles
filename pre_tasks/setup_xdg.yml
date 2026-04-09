@@ -5,8 +5,8 @@
     state: directory
     mode: "0755"
   loop:
-    - "{{ ansible_env.HOME }}/.config"
-    - "{{ ansible_env.HOME }}/.local/share"
-    - "{{ ansible_env.HOME }}/.local/state"
-    - "{{ ansible_env.HOME }}/.local/bin"
-    - "{{ ansible_env.HOME }}/.cache"
+    - "{{ ansible_facts.env.HOME }}/.config"
+    - "{{ ansible_facts.env.HOME }}/.local/share"
+    - "{{ ansible_facts.env.HOME }}/.local/state"
+    - "{{ ansible_facts.env.HOME }}/.local/bin"
+    - "{{ ansible_facts.env.HOME }}/.cache"
