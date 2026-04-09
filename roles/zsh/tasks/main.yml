@@ -1,4 +1,63 @@
 ---
-- name: "zsh | placeholder"
-  ansible.builtin.debug:
-    msg: "Role zsh not yet implemented"
+# Install zsh via system PM (must be in /etc/shells for chsh)
+- name: "zsh | Check for distro tasks: {{ ansible_os_family }}"
+  ansible.builtin.stat:
+    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
+  register: zsh_distro_config
+
+- name: "zsh | Run distro tasks: {{ ansible_os_family }}"
+  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
+  when: zsh_distro_config.stat.exists
+
+# oh-my-zsh (unattended — no TUI, no chsh, no auto-run)
+- name: "zsh | Check if oh-my-zsh is installed"
+  ansible.builtin.stat:
+    path: "{{ zsh_omz_dir }}"
+  register: omz_check
+
+- name: "zsh | Install oh-my-zsh"
+  ansible.builtin.shell:
+    cmd: >
+      sh -c "$(curl -fsSL {{ zsh_omz_repo }})" "" --unattended
+  args:
+    creates: "{{ zsh_omz_dir }}"
+  when: not omz_check.stat.exists
+
+# powerlevel10k theme
+- name: "zsh | Install powerlevel10k"
+  ansible.builtin.git:
+    repo: "{{ zsh_p10k_repo }}"
+    dest: "{{ zsh_p10k_dir }}"
+    depth: 1
+    version: master
+
+# Set zsh as default shell
+- name: "zsh | Find zsh binary path"
+  ansible.builtin.command:
+    cmd: which zsh
+  register: zsh_which
+  changed_when: false
+
+- name: "zsh | Set zsh as default shell"
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    shell: "{{ zsh_which.stdout }}"
+  become: true
+
+# --- Update tasks (only run with --tags update) ---
+- name: "zsh | Update oh-my-zsh"
+  ansible.builtin.command:
+    cmd: "{{ zsh_omz_dir }}/tools/upgrade.sh"
+  environment:
+    ZSH: "{{ zsh_omz_dir }}"
+  changed_when: false
+  tags: [update, never]
+
+- name: "zsh | Update powerlevel10k"
+  ansible.builtin.git:
+    repo: "{{ zsh_p10k_repo }}"
+    dest: "{{ zsh_p10k_dir }}"
+    version: master
+    update: true
+    force: true
+  tags: [update, never]

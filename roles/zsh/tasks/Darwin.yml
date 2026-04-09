@@ -1,0 +1,5 @@
+---
+- name: "zsh | Darwin | Install zsh via Homebrew"
+  community.general.homebrew:
+    name: zsh
+    state: present

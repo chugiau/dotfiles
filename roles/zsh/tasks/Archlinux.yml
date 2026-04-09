@@ -1,0 +1,7 @@
+---
+- name: "zsh | Archlinux | Install zsh"
+  community.general.pacman:
+    name: zsh
+    state: present
+    update_cache: true
+  become: true
