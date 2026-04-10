@@ -9,7 +9,7 @@ default_roles:
   - homebrew        # Install/ensure Homebrew (skip if you prefer system PM only)
   - core            # git, git-lfs, jq, openssh, gpg
   - zsh             # zsh + oh-my-zsh + powerlevel10k
-  - cli_tools       # bat, eza, lazygit
+  - cli_tools       # bat, eza, lazygit, glow
   - neovim          # neovim 0.11+ + NvChad starter
   - dotfiles        # Symlinks + alias fixups
 

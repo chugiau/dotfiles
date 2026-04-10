@@ -73,7 +73,7 @@ cmd_doctor() {
   echo "Checking installed tools..."
   echo ""
 
-  local tools=(git zsh nvim jq bat eza lazygit gpg ssh git-lfs)
+  local tools=(git zsh nvim jq bat eza lazygit glow gpg ssh git-lfs)
   for cmd in "${tools[@]}"; do
     if command -v "${cmd}" &>/dev/null; then
       log_ok "${cmd} ($(command -v "${cmd}"))"

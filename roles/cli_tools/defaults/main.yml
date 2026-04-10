@@ -3,3 +3,4 @@ cli_tools_brew:
   - bat
   - eza
   - lazygit
+  - glow

@@ -31,6 +31,30 @@
     update_cache: true
   become: true
 
+# glow: available via Charm's official apt repository
+- name: "cli_tools | Debian | Add Charm GPG key"
+  ansible.builtin.shell:
+    cmd: >
+      mkdir -p /etc/apt/keyrings &&
+      curl -fsSL https://repo.charm.sh/apt/gpg.key
+      | gpg --dearmor -o /etc/apt/keyrings/charm.gpg
+    creates: /etc/apt/keyrings/charm.gpg
+  become: true
+
+- name: "cli_tools | Debian | Add Charm repository"
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *"
+    state: present
+    filename: charm
+  become: true
+
+- name: "cli_tools | Debian | Install glow"
+  ansible.builtin.apt:
+    name: glow
+    state: present
+    update_cache: true
+  become: true
+
 # lazygit: download latest binary from GitHub releases
 - name: "cli_tools | Debian | Get latest lazygit version"
   ansible.builtin.uri:

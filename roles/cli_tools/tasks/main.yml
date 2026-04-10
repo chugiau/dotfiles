@@ -24,6 +24,7 @@
     - bat
     - eza
     - lazygit
+    - glow
   loop_control:
     loop_var: cli_tool
   changed_when: false

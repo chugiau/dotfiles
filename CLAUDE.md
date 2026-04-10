@@ -34,7 +34,7 @@ dotfiles check                # Dry-run
 | `homebrew` | Install/ensure Homebrew | N/A |
 | `core` | git, git-lfs, jq, openssh, gpg | System PM always |
 | `zsh` | zsh, oh-my-zsh, powerlevel10k | System PM for zsh |
-| `cli_tools` | bat, eza, lazygit | Homebrew (default) or system PM |
+| `cli_tools` | bat, eza, lazygit, glow | Homebrew (default) or system PM |
 | `neovim` | neovim 0.11+, NvChad starter | Homebrew (default) or system PM |
 | `dotfiles` | Symlinks, hooks, secrets, alias fixups | N/A |
 

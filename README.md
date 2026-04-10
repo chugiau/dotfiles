@@ -37,7 +37,7 @@ dotfiles edit                  # Open config in $EDITOR
 | **homebrew** | [Homebrew](https://brew.sh/) | N/A (self-installs) |
 | **core** | git, git-lfs, jq, openssh, gpg, curl, wget | System (apt/pacman/brew on mac) |
 | **zsh** | zsh, [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) | System PM for zsh |
-| **cli_tools** | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), [lazygit](https://github.com/jesseduffield/lazygit) | Homebrew (default) or system PM |
+| **cli_tools** | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), [lazygit](https://github.com/jesseduffield/lazygit), [glow](https://github.com/charmbracelet/glow) | Homebrew (default) or system PM |
 | **neovim** | [Neovim](https://neovim.io/) 0.11+, [NvChad](https://nvchad.com/) starter | Homebrew (default) or system PM |
 | **dotfiles** | Symlinks, git hooks, secrets, alias fixups | N/A |
 
@@ -179,7 +179,7 @@ This only triggers when the distro binary exists and the standard name is not al
 ### Package Manager Strategy
 
 - **System-level packages** (ssh, gpg, git, zsh) always use the system package manager — they integrate with PAM, systemd, and `/etc/shells`.
-- **Dev tools** (neovim, bat, eza, lazygit) default to Homebrew for consistent naming and up-to-date versions. Set `pm_preference: system` in `group_vars/all.yml` to use distro packages instead.
+- **Dev tools** (neovim, bat, eza, lazygit, glow) default to Homebrew for consistent naming and up-to-date versions. Set `pm_preference: system` in `group_vars/all.yml` to use distro packages instead.
 
 ## Post-Install Manual Steps
 

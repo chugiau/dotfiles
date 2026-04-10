@@ -5,6 +5,7 @@
       - bat
       - eza
       - lazygit
+      - glow
     state: present
     update_cache: true
   become: true

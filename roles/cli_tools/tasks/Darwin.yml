@@ -6,4 +6,5 @@
       - bat
       - eza
       - lazygit
+      - glow
     state: present
