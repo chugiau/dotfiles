@@ -1,0 +1,5 @@
+# Files inside home/ that chezmoi should NOT apply to the destination.
+#
+# Everything in home/ is a chezmoi source by convention; this file is the
+# escape hatch for anything that lives here for documentation or tooling
+# but must not land in the user's $HOME.
