@@ -1,149 +1,175 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# dotfiles — CLI wrapper for the Ansible-based dotfiles provisioning system.
+#!/bin/sh
+# dotfiles — POSIX sh CLI wrapper around chezmoi + mise.
 #
 # Usage:
-#   dotfiles install               Run full install (all roles)
-#   dotfiles install zsh neovim    Install specific roles only
-#   dotfiles update                Update oh-my-zsh, p10k, brew, plugins
-#   dotfiles link                  Re-create all symlinks
-#   dotfiles doctor                Check that all tools are installed
-#   dotfiles edit                  Open group_vars/all.yml in $EDITOR
-#   dotfiles check                 Dry-run (--check --diff)
+#   dotfiles install      Apply chezmoi and install mise-managed tools
+#   dotfiles update       Update chezmoi source, mise tools, omz, p10k, nvim
+#   dotfiles link         Re-apply chezmoi (re-create managed files)
+#   dotfiles check        Dry-run (chezmoi diff)
+#   dotfiles doctor       Verify expected tools and runtime trees are present
+#   dotfiles edit         Open the dotfiles repo in $EDITOR
 
-readonly DOTFILES_DIR="${HOME}/.dotfiles"
+set -eu
 
-# --- Helpers ---
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
-log_ok()   { printf '  \033[0;32m✓\033[0m %s\n' "$*"; }
-log_fail() { printf '  \033[0;31m✗\033[0m %s\n' "$*"; }
+# ── helpers ────────────────────────────────────────────────────────────────
+
+log_ok()   { printf '  \033[0;32mok\033[0m    %s\n' "$*"; }
+log_fail() { printf '  \033[0;31mfail\033[0m  %s\n' "$*"; }
+has()      { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
-  cat <<'EOF'
+    cat <<'EOF'
 Usage: dotfiles <command> [args]
 
 Commands:
-  install [role...]   Run full playbook, or specific roles via tags
-  update              Update oh-my-zsh, p10k, brew packages, nvim plugins
-  link                Re-create all symlinks (runs dotfiles role)
-  doctor              Verify all expected tools are installed
-  check               Dry-run the playbook (--check --diff)
-  edit                Open group_vars/all.yml in $EDITOR
+  install          Apply chezmoi and install every mise-managed tool
+  update           Update everything: chezmoi source, mise tools, omz, p10k, nvim
+  link             Re-apply chezmoi (re-create managed files / symlinks)
+  check            Dry-run (chezmoi diff)
+  doctor           Verify expected tools and runtime trees
+  edit             Open the dotfiles repo in $EDITOR
 
 Examples:
-  dotfiles install              # Full setup
-  dotfiles install zsh neovim   # Just zsh and neovim
-  dotfiles update               # Update all managed tools
-  dotfiles doctor               # Health check
+  dotfiles install
+  dotfiles update
+  dotfiles doctor
 EOF
 }
 
-# --- Commands ---
+# ── commands ───────────────────────────────────────────────────────────────
 
 cmd_install() {
-  cd "${DOTFILES_DIR}"
-  if [ $# -gt 0 ]; then
-    local tags
-    tags=$(IFS=,; echo "$*")
-    ansible-playbook site.yml --tags "${tags}"
-  else
-    ansible-playbook site.yml
-  fi
+    if ! has chezmoi; then
+        log_fail "chezmoi not installed — run bootstrap.sh first"
+        exit 1
+    fi
+    chezmoi apply
+    if has mise; then
+        mise install
+    else
+        log_fail "mise not installed — run bootstrap.sh first"
+    fi
 }
 
 cmd_update() {
-  cd "${DOTFILES_DIR}"
-  ansible-playbook site.yml --tags update
+    if has chezmoi; then
+        chezmoi update
+    fi
+    if has mise; then
+        mise upgrade || true
+    fi
+    if [ -x "$HOME/.oh-my-zsh/tools/upgrade.sh" ]; then
+        sh "$HOME/.oh-my-zsh/tools/upgrade.sh" || true
+    fi
+    if [ -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k/.git" ]; then
+        git -C "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" pull --ff-only || true
+    fi
+    if has nvim; then
+        nvim --headless "+Lazy! update" +qa || true
+    fi
 }
 
 cmd_link() {
-  cd "${DOTFILES_DIR}"
-  ansible-playbook site.yml --tags dotfiles
+    chezmoi apply
 }
 
 cmd_check() {
-  cd "${DOTFILES_DIR}"
-  ansible-playbook site.yml --check --diff "$@"
-}
-
-cmd_doctor() {
-  local ok=0 fail=0
-
-  echo "Checking installed tools..."
-  echo ""
-
-  local tools=(git zsh nvim jq bat eza lazygit glow gpg ssh git-lfs)
-  for cmd in "${tools[@]}"; do
-    if command -v "${cmd}" &>/dev/null; then
-      log_ok "${cmd} ($(command -v "${cmd}"))"
-      ((ok++)) || true
-    else
-      log_fail "${cmd} NOT FOUND"
-      ((fail++)) || true
-    fi
-  done
-
-  echo ""
-
-  # neovim version check
-  if command -v nvim &>/dev/null; then
-    local ver
-    ver=$(nvim --version | head -1 | grep -oP '\d+\.\d+' || echo "unknown")
-    if [ "${ver}" != "unknown" ] && awk "BEGIN{exit (${ver} < 0.11)}" 2>/dev/null; then
-      log_ok "neovim version ${ver} (>= 0.11)"
-    else
-      log_fail "neovim version ${ver} (need >= 0.11)"
-      ((fail++)) || true
-    fi
-  fi
-
-  # oh-my-zsh
-  if [ -d "${HOME}/.oh-my-zsh" ]; then
-    log_ok "oh-my-zsh installed"
-  else
-    log_fail "oh-my-zsh NOT FOUND"
-    ((fail++)) || true
-  fi
-
-  # powerlevel10k
-  if [ -d "${HOME}/.oh-my-zsh/custom/themes/powerlevel10k" ]; then
-    log_ok "powerlevel10k installed"
-  else
-    log_fail "powerlevel10k NOT FOUND"
-    ((fail++)) || true
-  fi
-
-  # NvChad / nvim config
-  if [ -f "${HOME}/.config/nvim/init.lua" ]; then
-    log_ok "neovim config present"
-  else
-    log_fail "neovim config NOT FOUND (~/.config/nvim/init.lua)"
-    ((fail++)) || true
-  fi
-
-  echo ""
-  echo "Result: ${ok} ok, ${fail} failed"
-  [ "${fail}" -eq 0 ]
+    chezmoi diff "$@"
 }
 
 cmd_edit() {
-  "${EDITOR:-nvim}" "${DOTFILES_DIR}/group_vars/all.yml"
+    "${EDITOR:-nvim}" "$DOTFILES_DIR"
 }
 
-# --- Dispatch ---
+cmd_doctor() {
+    ok=0
+    fail=0
+
+    echo "Checking installed tools..."
+    echo ""
+
+    for cmd in git zsh nvim jq bat eza lazygit glow gpg ssh git-lfs chezmoi mise; do
+        if has "$cmd"; then
+            log_ok "$cmd ($(command -v "$cmd"))"
+            ok=$((ok + 1))
+        else
+            log_fail "$cmd NOT FOUND"
+            fail=$((fail + 1))
+        fi
+    done
+
+    echo ""
+
+    # neovim version check: want >= 0.11.  Parse the first line of
+    # `nvim --version`, strip leading 'v', and compare via case glob so
+    # we stay POSIX-portable.
+    if has nvim; then
+        ver="$(nvim --version 2>/dev/null | head -n1 | awk '{print $2}')"
+        ver="${ver#v}"
+        case "$ver" in
+            '')
+                log_fail "neovim version unknown"
+                fail=$((fail + 1))
+                ;;
+            0.0.*|0.1.*|0.2.*|0.3.*|0.4.*|0.5.*|0.6.*|0.7.*|0.8.*|0.9.*|0.10.*)
+                log_fail "neovim version $ver (need >= 0.11)"
+                fail=$((fail + 1))
+                ;;
+            *)
+                log_ok "neovim version $ver (>= 0.11)"
+                ;;
+        esac
+    fi
+
+    # runtime trees
+    if [ -d "$HOME/.oh-my-zsh" ]; then
+        log_ok "oh-my-zsh installed"
+    else
+        log_fail "oh-my-zsh NOT FOUND"
+        fail=$((fail + 1))
+    fi
+
+    if [ -d "$HOME/.oh-my-zsh/custom/themes/powerlevel10k" ]; then
+        log_ok "powerlevel10k installed"
+    else
+        log_fail "powerlevel10k NOT FOUND"
+        fail=$((fail + 1))
+    fi
+
+    if [ -f "$HOME/.config/nvim/init.lua" ]; then
+        log_ok "neovim config present"
+    else
+        log_fail "neovim config NOT FOUND (~/.config/nvim/init.lua)"
+        fail=$((fail + 1))
+    fi
+
+    if [ -d "$HOME/.config/dotfiles/modules" ]; then
+        log_ok "chezmoi runtime tree present (~/.config/dotfiles)"
+    else
+        log_fail "chezmoi runtime tree NOT FOUND (~/.config/dotfiles)"
+        fail=$((fail + 1))
+    fi
+
+    echo ""
+    echo "Result: $ok ok, $fail failed"
+    [ "$fail" -eq 0 ]
+}
+
+# ── dispatch ───────────────────────────────────────────────────────────────
 
 case "${1:-}" in
-  install) shift; cmd_install "$@" ;;
-  update)  cmd_update ;;
-  link)    cmd_link ;;
-  check)   shift; cmd_check "$@" ;;
-  doctor)  cmd_doctor ;;
-  edit)    cmd_edit ;;
-  -h|--help|help|"") usage ;;
-  *)
-    echo "Unknown command: $1" >&2
-    usage >&2
-    exit 1
-    ;;
+    install) shift; cmd_install "$@" ;;
+    update)  cmd_update ;;
+    link)    cmd_link ;;
+    check)   shift; cmd_check "$@" ;;
+    doctor)  cmd_doctor ;;
+    edit)    cmd_edit ;;
+    -h|--help|help|'') usage ;;
+    *)
+        echo "Unknown command: $1" >&2
+        usage >&2
+        exit 1
+        ;;
 esac
