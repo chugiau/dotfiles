@@ -1,236 +1,203 @@
 # dotfiles
 
-Personal development environment provisioned with [Ansible](https://docs.ansible.com/).
+Personal development environment provisioned with [chezmoi](https://www.chezmoi.io/) and [mise](https://mise.jdx.dev/).
 
-One command sets up a complete workstation — shell, editor, CLI tools, and config — on macOS or Linux (including WSL2). Idempotent and safe to re-run.
+One command on a fresh machine sets up shell, editor, CLI tools and config — on macOS or Linux (including WSL2). Idempotent and safe to re-run.
 
 ## Quick Start
 
-**First-time setup** on a fresh machine:
+**First-time setup** on a fresh machine — the bootstrap script assumes nothing beyond a POSIX `sh` and network access:
 
-```bash
-git clone https://github.com/<you>/dotfiles.git ~/.dotfiles
-cd ~/.dotfiles
-bash bootstrap.sh
+```sh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/<you>/dotfiles/main/bootstrap.sh)"
 ```
 
-`bootstrap.sh` installs Ansible if needed, copies the default config, and runs the full playbook.
+Or, if you've already cloned the repo:
+
+```sh
+git clone https://github.com/<you>/dotfiles.git ~/.dotfiles
+sh ~/.dotfiles/bootstrap.sh
+```
+
+`bootstrap.sh` installs the system prereqs (curl, git, ca-certs), drops chezmoi and mise into `~/.local/bin`, writes the chezmoi config, and runs `chezmoi apply`. Everything else — the full system package list, `mise install`, oh-my-zsh + powerlevel10k, NvChad starter, git hooks, `chsh -s zsh` — is handled by the chezmoi `run_once_*` scripts.
 
 **After initial setup**, use the CLI wrapper:
 
-```bash
-dotfiles install               # Full install (all roles)
-dotfiles install zsh neovim    # Install specific roles only
-dotfiles update                # Update oh-my-zsh, p10k, Homebrew, nvim plugins
-dotfiles doctor                # Verify all tools are installed correctly
-dotfiles check                 # Dry-run — preview what would change
-dotfiles link                  # Re-create all symlinks
-dotfiles edit                  # Open config in $EDITOR
+```sh
+dotfiles install          # Apply chezmoi + install every mise tool
+dotfiles update           # Update chezmoi, mise tools, omz, p10k, nvim plugins
+dotfiles link             # Re-apply chezmoi (re-create managed files)
+dotfiles check            # Dry-run — preview what chezmoi would change
+dotfiles doctor           # Verify all tools are present
+dotfiles edit             # Open the repo in $EDITOR
 ```
 
 > Add `~/.dotfiles/bin` to your `PATH` to use `dotfiles` directly.
 
 ## What Gets Installed
 
-| Role | Packages | Package Manager |
-|------|----------|-----------------|
-| **homebrew** | [Homebrew](https://brew.sh/) | N/A (self-installs) |
-| **core** | git, git-lfs, jq, openssh, gpg, curl, wget | System (apt/pacman/brew on mac) |
-| **zsh** | zsh, [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) | System PM for zsh |
-| **cli_tools** | [bat](https://github.com/sharkdp/bat), [eza](https://github.com/eza-community/eza), [lazygit](https://github.com/jesseduffield/lazygit), [glow](https://github.com/charmbracelet/glow) | Homebrew (default) or system PM |
-| **neovim** | [Neovim](https://neovim.io/) 0.11+, [NvChad](https://nvchad.com/) starter | Homebrew (default) or system PM |
-| **dotfiles** | Symlinks, git hooks, secrets, alias fixups | N/A |
+| Layer | Managed by | Contents |
+|---|---|---|
+| **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, openssh, curl, wget, build tools |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | neovim, bat, eza, lazygit, glow |
+| **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
+| **Editor config** | run_once scripts | [NvChad](https://nvchad.com/) starter |
+| **Dotfiles** | [chezmoi](https://www.chezmoi.io/) | zshrc, zprofile, gitconfig, tmux.conf, Claude statusline, ... |
 
 ## Supported Platforms
 
 | Platform | Status |
-|----------|--------|
+|---|---|
 | macOS (Apple Silicon / Intel) | Supported |
-| Ubuntu / Debian | Supported |
-| Arch Linux / Manjaro | Supported |
-| WSL2 | Supported (auto-detected) |
-| Fedora | Partial (core + homebrew roles) |
+| Ubuntu / Debian / Pop!_OS / Mint | Supported |
+| Arch Linux / Manjaro / EndeavourOS | Supported |
+| Fedora | Supported |
+| WSL2 | Supported (auto-detected via `uname` + `/etc/os-release`) |
 
-Adding a new distro is just dropping a `<OsFamily>.yml` file in a role's `tasks/` directory — no conditionals to edit.
-
-## Configuration
-
-Copy the example and customize:
-
-```bash
-cp group_vars/all.yml.example group_vars/all.yml
-```
-
-Key options in `group_vars/all.yml`:
-
-```yaml
-# Choose which roles to install (comment out to skip)
-default_roles:
-  - homebrew
-  - core
-  - zsh
-  - cli_tools
-  - neovim
-  - dotfiles
-
-# Package manager for dev tools on Linux: "brew" or "system"
-pm_preference: brew
-
-# Point to your own NvChad fork after customizing
-# nvim_repo: "https://github.com/<you>/nvim-config.git"
-```
+Adding a distro is just one new `else if` in `home/run_once_before_10-system-packages.sh.tmpl`.
 
 ## Project Structure
 
 ```
 ~/.dotfiles/
-├── ansible.cfg                 # Ansible settings
-├── inventory                   # Localhost connection
-├── site.yml                    # Main playbook
-├── group_vars/
-│   ├── all.yml                 # Your config (gitignored)
-│   └── all.yml.example         # Config template
-├── bootstrap.sh                # First-time setup script
-├── bin/dotfiles                # CLI wrapper
-├── install.sh                  # Thin wrapper → bootstrap.sh
+├── .chezmoiroot                       # contains "home" — chezmoi source root
+├── bootstrap.sh                       # POSIX sh bootstrap (zero-dependency)
+├── bin/dotfiles                       # POSIX sh CLI wrapper
+├── tests/test_smoke.sh                # POSIX sh structural smoke tests
 │
-├── pre_tasks/                  # Run before all roles
-│   ├── detect_wsl.yml          # Sets is_wsl fact
-│   ├── detect_brew.yml         # Sets brew_available, brew_prefix
-│   └── setup_xdg.yml          # Creates XDG base directories
-│
-├── roles/
-│   ├── homebrew/               # Homebrew install + prerequisites
-│   ├── core/                   # System essentials (git, gpg, jq, ssh)
-│   ├── zsh/                    # Shell environment
-│   ├── cli_tools/              # Modern CLI replacements
-│   ├── neovim/                 # Editor + NvChad
-│   └── dotfiles/               # Config linking + alias fixups
-│
-├── zsh/                        # Shell config files
-│   ├── zshrc.symlink           # → ~/.zshrc
-│   ├── zprofile.symlink        # → ~/.zprofile
-│   └── modules/                # Modular zsh config
-│       ├── pkg-quarantine.zsh  # Supply-chain security for pip/npm
-│       ├── ssh-agent.zsh       # Auto-start ssh-agent
-│       └── secrets.zsh         # Load secrets/*.env files
-│
-├── git/
-│   ├── gitconfig.symlink       # → ~/.gitconfig
-│   └── hooks/pre-commit        # Secret leak prevention
-│
-├── tmux/
-│   └── tmux.conf.symlink       # → ~/.tmux.conf
-│
-├── secrets/                    # Credentials (gitignored)
-│   ├── credentials.env.example # Template
-│   └── credentials.env         # Your secrets (never committed)
-│
-└── tests/
-    ├── test_bootstrap.sh       # Smoke tests (syntax + lint)
-    └── molecule/default/       # Docker integration tests
+└── home/                              # chezmoi source — mirrors $HOME
+    ├── .chezmoiignore
+    │
+    ├── dot_zshrc                      # → ~/.zshrc
+    ├── dot_zprofile                   # → ~/.zprofile
+    ├── dot_gitconfig                  # → ~/.gitconfig
+    ├── dot_gitignore                  # → ~/.gitignore
+    ├── dot_tmux.conf                  # → ~/.tmux.conf
+    │
+    ├── dot_claude/
+    │   └── executable_statusline-command.sh   # → ~/.claude/statusline-command.sh
+    │
+    ├── dot_config/
+    │   ├── mise/config.toml                   # → ~/.config/mise/config.toml
+    │   └── dotfiles/
+    │       ├── modules/                       # shell modules sourced by zshrc
+    │       │   ├── alias.zsh
+    │       │   ├── functions.zsh
+    │       │   ├── fzf.zsh
+    │       │   ├── pkg-quarantine.zsh
+    │       │   ├── secrets.zsh
+    │       │   └── ssh-agent.zsh
+    │       ├── hooks/
+    │       │   └── executable_pre-commit      # secret-scan pre-commit
+    │       └── secrets/
+    │           └── credentials.env.example    # template for local secrets
+    │
+    ├── run_once_before_10-system-packages.sh.tmpl  # apt/pacman/dnf/brew
+    ├── run_onchange_after_10-mise-install.sh.tmpl  # mise install (hash-gated)
+    ├── run_once_after_20-ohmyzsh.sh.tmpl           # omz + powerlevel10k
+    ├── run_once_after_30-nvchad.sh.tmpl            # NvChad starter + Lazy sync
+    ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit
+    └── run_once_after_50-default-shell.sh.tmpl     # chsh -s zsh
 ```
 
 ## How It Works
 
-### Role Dispatch Pattern
+### chezmoi layout conventions
 
-Every role auto-discovers distro-specific tasks:
+Files under `home/` follow [chezmoi's naming conventions](https://www.chezmoi.io/reference/source-state-attributes/):
 
-```yaml
-# roles/<role>/tasks/main.yml
-- name: Check for distro tasks
-  ansible.builtin.stat:
-    path: "{{ role_path }}/tasks/{{ ansible_os_family }}.yml"
-  register: distro_config
+| Prefix | Meaning |
+|---|---|
+| `dot_` | Leading `.` on the destination (e.g. `dot_zshrc` → `~/.zshrc`) |
+| `executable_` | Mark the destination mode as `+x` |
+| `private_` | Mark the destination mode as `0600` |
+| `run_once_before_*.sh.tmpl` | POSIX sh script, runs once, before `apply` |
+| `run_once_after_*.sh.tmpl`  | POSIX sh script, runs once, after `apply` |
+| `run_onchange_*.sh.tmpl` | Re-runs when the rendered script content changes |
 
-- name: Run distro tasks
-  ansible.builtin.include_tasks: "{{ ansible_os_family }}.yml"
-  when: distro_config.stat.exists
+`.chezmoiroot` at the repo root points chezmoi at `home/` as its source directory, keeping the top level reserved for `bootstrap.sh`, `bin/`, `tests/`, and docs.
+
+### $DOTFILES runtime tree
+
+The shell ships with two environment variables:
+
+| Variable | Points at | Purpose |
+|---|---|---|
+| `$DOTFILES_REPO` | `$HOME/.dotfiles` | Git checkout — used by `bin/dotfiles`, git hooks, tooling |
+| `$DOTFILES` | `$HOME/.config/dotfiles` | chezmoi-deployed runtime tree — modules, secrets sourced by zshrc/zprofile |
+
+Splitting the two keeps source and runtime separate: `zshrc` sources `$DOTFILES/modules/*.zsh`, which are the materialised files chezmoi drops into the runtime tree. Editing the source file in `home/dot_config/dotfiles/modules/` and re-running `dotfiles link` re-deploys it.
+
+### Tool management via mise
+
+`home/dot_config/mise/config.toml` is the single source of truth for dev tools:
+
+```toml
+[tools]
+neovim  = "latest"
+bat     = "latest"
+eza     = "latest"
+lazygit = "latest"
+glow    = "latest"
 ```
 
-This means the role's `main.yml` stays clean. Platform-specific logic lives in:
-- `Debian.yml` — Ubuntu, Debian, Pop!_OS, etc.
-- `Archlinux.yml` — Arch, Manjaro, EndeavourOS, etc.
-- `Darwin.yml` — macOS
+Add or remove a tool, run `dotfiles install`, and mise picks up the change. The `run_onchange_after_10-mise-install.sh.tmpl` script has the config's SHA256 hash embedded in a comment, so chezmoi re-runs `mise install` automatically when the manifest is edited.
 
-### Symlink Convention
+### Secrets
 
-Files named `*.symlink` are automatically linked to `~/.<basename>`:
+`home/dot_config/dotfiles/secrets/credentials.env.example` is committed as a template. On a first install, chezmoi deploys it to `~/.config/dotfiles/secrets/credentials.env.example`. Users manually copy it to `credentials.env` and fill in real values — `zsh/modules/secrets.zsh` sources every `*.env` file in the secrets dir at login and warns about any `*.env.example` without a corresponding `*.env`.
 
-| Source | Target |
-|--------|--------|
-| `zsh/zshrc.symlink` | `~/.zshrc` |
-| `zsh/zprofile.symlink` | `~/.zprofile` |
-| `git/gitconfig.symlink` | `~/.gitconfig` |
-| `tmux/tmux.conf.symlink` | `~/.tmux.conf` |
-
-### Alias Fixups
-
-Some distros install CLI tools under different names. The `dotfiles` role creates `~/.local/bin` symlinks to normalize them:
-
-| Distro binary | Alias created |
-|---------------|---------------|
-| `/usr/bin/batcat` | `~/.local/bin/bat` |
-| `/usr/bin/fdfind` | `~/.local/bin/fd` |
-
-This only triggers when the distro binary exists and the standard name is not already in `PATH`.
-
-### Package Manager Strategy
-
-- **System-level packages** (ssh, gpg, git, zsh) always use the system package manager — they integrate with PAM, systemd, and `/etc/shells`.
-- **Dev tools** (neovim, bat, eza, lazygit, glow) default to Homebrew for consistent naming and up-to-date versions. Set `pm_preference: system` in `group_vars/all.yml` to use distro packages instead.
+The secret-scan pre-commit hook (`home/dot_config/dotfiles/hooks/executable_pre-commit`) is installed into the repo's own `.git/hooks/pre-commit` by `run_onchange_after_40-git-hooks.sh.tmpl`, blocking staged `*.env` files and scanning for common token patterns (GitLab, GitHub PAT/OAuth/App, OpenAI, AWS, Slack).
 
 ## Post-Install Manual Steps
 
 Most things are fully automated. These require one-time manual action:
 
 | Task | Command | Why manual |
-|------|---------|-----------|
+|---|---|---|
 | Configure powerlevel10k | `p10k configure` | Interactive TUI wizard |
+| Fill in secrets | `cp ~/.config/dotfiles/secrets/credentials.env.example ~/.config/dotfiles/secrets/credentials.env && $EDITOR !$` | Personal credentials |
 | Import GPG keys | `gpg --import <keyfile>` | Personal key material |
 | Generate SSH keys | `ssh-keygen -t ed25519` | Personal key material |
-| Fork NvChad config | Clone, customize, set `nvim_repo` | Personal editor preferences |
+| Fork NvChad config | Clone, customise, point `run_once_after_30-nvchad.sh.tmpl` at your fork | Personal editor preferences |
 
 ## Updating
 
-```bash
+```sh
 dotfiles update
 ```
 
-This runs tasks tagged `update`, which:
-- Updates oh-my-zsh via its built-in upgrade script
-- Pulls the latest powerlevel10k
-- Runs `brew update` (if using Homebrew)
-- Runs `:Lazy update` headlessly in neovim
+Runs in order:
+- `chezmoi update` — pulls the repo and re-applies any changed source files
+- `mise upgrade` — bumps every managed tool to its latest version
+- `oh-my-zsh` `upgrade.sh` — pulls oh-my-zsh
+- `git -C powerlevel10k pull` — bumps p10k
+- `nvim --headless "+Lazy! update" +qa` — refreshes neovim plugins
 
 ## Testing
 
-```bash
-# Syntax and lint checks
-bash tests/test_bootstrap.sh
+```sh
+# Structural smoke tests (POSIX sh, no dependencies beyond chezmoi if present)
+sh tests/test_smoke.sh
 
-# Dry-run on your machine (shows what would change, changes nothing)
+# Dry-run on your machine — shows what chezmoi would change, changes nothing
 dotfiles check
-
-# Full integration test in Docker containers
-molecule test
+# or:
+chezmoi apply --dry-run --verbose
 ```
 
-## Adding a New Role
+`tests/test_smoke.sh` verifies: the source tree layout, POSIX-sh parseability of `bootstrap.sh` and `bin/dotfiles`, bashism absence, Ansible absence, and (if `chezmoi` is on PATH) that every `run_*.sh.tmpl` renders without Go-template errors.
 
-1. Create the role directory:
-   ```bash
-   mkdir -p roles/myrole/{tasks,defaults}
-   ```
+## Adding a Tool
 
-2. Write `roles/myrole/defaults/main.yml` with default variables.
+1. Edit `home/dot_config/mise/config.toml`, add the tool line.
+2. `dotfiles install` — the hash-gated `run_onchange_after_10-mise-install.sh.tmpl` re-runs and `mise install` picks up the new tool.
+3. Optional: add the binary to the `doctor` tool list in `bin/dotfiles`.
 
-3. Write `roles/myrole/tasks/main.yml` with the distro dispatch pattern.
+## Adding a Managed File
 
-4. Add distro-specific files as needed (e.g., `Debian.yml`, `Darwin.yml`).
-
-5. Add the role name to `default_roles` in `group_vars/all.yml.example`.
+1. Drop the file under `home/` using chezmoi naming (`dot_` prefix, etc).
+2. `dotfiles link` — chezmoi deploys it to `$HOME`.
 
 ## License
 
