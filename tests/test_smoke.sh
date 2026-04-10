@@ -89,12 +89,12 @@ echo "[home/ source tree]"
 check_exists "home/dot_zshrc"
 check_exists "home/dot_zprofile"
 check_exists "home/dot_gitconfig"
-check_exists "home/dot_gitignore"
-check_exists "home/dot_tmux.conf"
+check_exists "home/empty_dot_gitignore"
+check_exists "home/empty_dot_tmux.conf"
 check_exists "home/dot_config/mise/config.toml"
-check_exists "home/dot_config/dotfiles/modules/alias.zsh"
-check_exists "home/dot_config/dotfiles/modules/functions.zsh"
-check_exists "home/dot_config/dotfiles/modules/fzf.zsh"
+check_exists "home/dot_config/dotfiles/modules/empty_alias.zsh"
+check_exists "home/dot_config/dotfiles/modules/empty_functions.zsh"
+check_exists "home/dot_config/dotfiles/modules/empty_fzf.zsh"
 check_exists "home/dot_config/dotfiles/modules/pkg-quarantine.zsh"
 check_exists "home/dot_config/dotfiles/modules/secrets.zsh"
 check_exists "home/dot_config/dotfiles/modules/ssh-agent.zsh"
@@ -142,12 +142,25 @@ echo ""
 if command -v chezmoi >/dev/null 2>&1; then
     echo "[chezmoi]"
     # Render each template with the repo's source dir so `include` calls
-    # (which are relative to chezmoi's sourceDir) can resolve.
+    # (which are relative to chezmoi's sourceDir) can resolve.  Then
+    # sh -n the rendered output so we catch POSIX-sh syntax errors
+    # that only manifest after template expansion.
+    tmpdir="${TMPDIR:-/tmp}/dotfiles-smoke.$$"
+    mkdir -p "$tmpdir"
+    trap 'rm -rf "$tmpdir"' EXIT INT TERM
+
     for tmpl in "$SCRIPT_DIR"/home/run_*.sh.tmpl; do
         [ -f "$tmpl" ] || continue
         name="$(basename "$tmpl")"
-        if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" > /dev/null 2>&1; then
+        rendered="$tmpdir/${name%.tmpl}"
+        if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" > "$rendered" 2>/dev/null; then
             ok "template renders: $name"
+            if sh -n "$rendered" 2>/dev/null; then
+                ok "rendered script parses: $name"
+            else
+                fail "rendered script parses: $name"
+                sh -n "$rendered" >&2 || true
+            fi
         else
             fail "template renders: $name"
             chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" >&2 || true
