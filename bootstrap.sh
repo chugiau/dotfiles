@@ -1,156 +1,230 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-# bootstrap.sh — Minimal bootstrap for dotfiles provisioning.
+#!/bin/sh
+# bootstrap.sh — zero-dependency bootstrap for the chezmoi + mise dotfiles.
 #
-# Ensures git and ansible are available, clones the dotfiles repo if needed,
-# copies the default config, and runs the Ansible playbook.
+# Assumes the starting environment is the most minimal POSIX shell with
+# network access — no bash, no coreutils surprises, no package managers
+# already set up.
+#
+# Flow:
+#   1. Detect OS / distro.
+#   2. Install the absolute minimum via the system package manager:
+#      curl, git, ca-certificates.  (Everything else is handled by the
+#      chezmoi run_once scripts after the first `apply`.)
+#   3. Install chezmoi and mise into ~/.local/bin.
+#   4. Clone the dotfiles repo into ~/.dotfiles if it's not there yet.
+#   5. Write ~/.config/chezmoi/chezmoi.toml pointing at the repo.
+#   6. Run `chezmoi apply`, which triggers:
+#        - run_once_before_10-system-packages.sh.tmpl  (full pkg list)
+#        - run_onchange_after_10-mise-install.sh.tmpl  (mise install)
+#        - run_once_after_20-ohmyzsh.sh.tmpl           (omz + p10k)
+#        - run_once_after_30-nvchad.sh.tmpl            (NvChad starter)
+#        - run_onchange_after_40-git-hooks.sh.tmpl     (git hook)
+#        - run_once_after_50-default-shell.sh.tmpl     (chsh -s zsh)
 #
 # Usage:
-#   curl -fsSL <raw-url>/bootstrap.sh | bash          # first-time setup
-#   bash bootstrap.sh                                  # from within the repo
-#   bash bootstrap.sh --tags zsh                       # install specific role
-#   bash bootstrap.sh --check --diff                   # dry-run
+#   curl -fsSL <raw-url>/bootstrap.sh | sh
+#   sh bootstrap.sh
 
-readonly DOTFILES_DIR="${HOME}/.dotfiles"
-readonly REPO_URL="${DOTFILES_REPO:-https://github.com/AbandonedScope/dotfiles.git}"
+set -eu
 
-# --- Helpers ---
+DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
+DOTFILES_REPO_URL="${DOTFILES_REPO_URL:-https://github.com/AbandonedScope/dotfiles.git}"
+BIN_DIR="$HOME/.local/bin"
+
+# ── logging ────────────────────────────────────────────────────────────────
 
 log_info()  { printf '\033[0;34m[info]\033[0m  %s\n' "$*"; }
 log_ok()    { printf '\033[0;32m[ok]\033[0m    %s\n' "$*"; }
 log_warn()  { printf '\033[0;33m[warn]\033[0m  %s\n' "$*"; }
 log_error() { printf '\033[0;31m[error]\033[0m %s\n' "$*" >&2; }
 
-command_exists() { command -v "$1" &>/dev/null; }
+die() {
+    log_error "$*"
+    exit 1
+}
 
-# --- Install Ansible if missing ---
+has() {
+    command -v "$1" >/dev/null 2>&1
+}
 
-install_ansible() {
-  if command_exists ansible-playbook; then
-    log_ok "ansible-playbook already available"
-    return 0
-  fi
+# Run a command as root — directly if we already are, via sudo otherwise.
+maybe_sudo() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif has sudo; then
+        sudo "$@"
+    else
+        die "Need root or sudo to run: $*"
+    fi
+}
 
-  log_info "Installing Ansible..."
+# ── OS detection ───────────────────────────────────────────────────────────
 
-  case "$(uname -s)" in
-    Darwin)
-      if ! command_exists brew; then
-        log_info "Installing Homebrew first..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-      fi
-      brew install ansible
-      ;;
-    Linux)
-      if [ -f /etc/os-release ]; then
-        # shellcheck source=/dev/null
-        . /etc/os-release
-        case "${ID:-}" in
-          ubuntu|debian)
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq software-properties-common
-            sudo apt-add-repository -y --update ppa:ansible/ansible
-            sudo apt-get install -y -qq ansible
+OS=""
+DISTRO=""
+
+detect_os() {
+    uname_s="$(uname -s)"
+    case "$uname_s" in
+        Darwin)
+            OS=darwin
             ;;
-          arch|manjaro|endeavouros)
-            sudo pacman -Sy --noconfirm ansible
-            ;;
-          fedora)
-            sudo dnf install -y ansible
-            ;;
-          *)
-            log_info "Unknown distro '${ID}', trying pipx..."
-            if command_exists pipx; then
-              pipx install ansible-core
-            elif command_exists pip3; then
-              pip3 install --user ansible-core
+        Linux)
+            OS=linux
+            if [ -r /etc/os-release ]; then
+                # shellcheck disable=SC1091
+                . /etc/os-release
+                DISTRO="${ID:-unknown}"
             else
-              log_error "Cannot install Ansible — install it manually and re-run."
-              exit 1
+                DISTRO=unknown
             fi
             ;;
-        esac
-      else
-        log_error "Cannot detect Linux distribution. Install Ansible manually."
-        exit 1
-      fi
-      ;;
-    *)
-      log_error "Unsupported OS: $(uname -s)"
-      exit 1
-      ;;
-  esac
-
-  if command_exists ansible-playbook; then
-    log_ok "Ansible installed successfully"
-  else
-    log_error "Ansible installation failed"
-    exit 1
-  fi
+        *)
+            die "Unsupported OS: $uname_s"
+            ;;
+    esac
+    log_info "Detected: os=$OS distro=${DISTRO:-n/a}"
 }
 
-# --- Install community.general collection if missing ---
+# ── Stage 1: minimal prereqs (curl + git) ──────────────────────────────────
 
-install_collections() {
-  if ansible-galaxy collection list community.general &>/dev/null; then
-    return 0
-  fi
-  log_info "Installing Ansible community.general collection..."
-  ansible-galaxy collection install community.general
+install_prereqs() {
+    log_info "Ensuring curl and git are available..."
+
+    if [ "$OS" = darwin ]; then
+        # git ships via the Xcode Command Line Tools on macOS.
+        if ! has git; then
+            log_info "Installing Xcode CLI tools (approve the dialog)..."
+            xcode-select --install 2>/dev/null || true
+            while ! has git; do
+                sleep 5
+            done
+        fi
+        has curl || die "curl missing on macOS (unexpected)"
+        return 0
+    fi
+
+    case "$DISTRO" in
+        ubuntu|debian|pop|linuxmint)
+            maybe_sudo apt-get update -qq
+            maybe_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+                curl git ca-certificates
+            ;;
+        arch|manjaro|endeavouros)
+            maybe_sudo pacman -Sy --noconfirm --needed curl git ca-certificates
+            ;;
+        fedora)
+            maybe_sudo dnf install -y curl git ca-certificates
+            ;;
+        *)
+            if has curl && has git; then
+                log_warn "Unknown distro '$DISTRO' — relying on existing curl + git."
+            else
+                die "Unknown distro '$DISTRO'; install curl and git manually, then re-run."
+            fi
+            ;;
+    esac
+
+    has curl || die "curl still missing after prereq install"
+    has git  || die "git still missing after prereq install"
+    log_ok "curl + git available"
 }
 
-# --- Clone dotfiles repo if not present ---
+# ── Stage 2: chezmoi ───────────────────────────────────────────────────────
 
-clone_dotfiles() {
-  if [ -d "${DOTFILES_DIR}" ]; then
-    log_ok "Dotfiles repo already at ${DOTFILES_DIR}"
-    return 0
-  fi
+install_chezmoi() {
+    if has chezmoi; then
+        log_ok "chezmoi already installed: $(command -v chezmoi)"
+        return 0
+    fi
+    if [ -x "$BIN_DIR/chezmoi" ]; then
+        PATH="$BIN_DIR:$PATH"
+        export PATH
+        log_ok "chezmoi already at $BIN_DIR/chezmoi"
+        return 0
+    fi
 
-  if ! command_exists git; then
-    log_error "git is not installed. Install it and re-run."
-    exit 1
-  fi
+    log_info "Installing chezmoi -> $BIN_DIR"
+    mkdir -p "$BIN_DIR"
+    # The install script supports -b <dir> to target a bin dir.
+    sh -c "$(curl -fsLS get.chezmoi.io)" -- -b "$BIN_DIR"
 
-  log_info "Cloning dotfiles to ${DOTFILES_DIR}..."
-  git clone "${REPO_URL}" "${DOTFILES_DIR}"
+    PATH="$BIN_DIR:$PATH"
+    export PATH
+    has chezmoi || die "chezmoi install failed"
 }
 
-# --- Ensure group_vars/all.yml exists ---
+# ── Stage 3: mise ──────────────────────────────────────────────────────────
 
-setup_config() {
-  local config="${DOTFILES_DIR}/group_vars/all.yml"
-  local example="${DOTFILES_DIR}/group_vars/all.yml.example"
+install_mise() {
+    if has mise; then
+        log_ok "mise already installed: $(command -v mise)"
+        return 0
+    fi
+    if [ -x "$BIN_DIR/mise" ]; then
+        PATH="$BIN_DIR:$PATH"
+        export PATH
+        log_ok "mise already at $BIN_DIR/mise"
+        return 0
+    fi
 
-  if [ -f "${config}" ]; then
-    return 0
-  fi
+    log_info "Installing mise -> $BIN_DIR (via https://mise.run)"
+    mkdir -p "$BIN_DIR"
+    curl -fsSL https://mise.run | sh
 
-  if [ -f "${example}" ]; then
-    cp "${example}" "${config}"
-    log_info "Created group_vars/all.yml from template."
-    log_info "Edit it to customize your setup: ${config}"
-  else
-    log_warn "No all.yml.example found — using defaults from roles."
-  fi
+    PATH="$BIN_DIR:$PATH"
+    export PATH
+    has mise || log_warn "mise install did not land in PATH; chezmoi will retry later."
 }
 
-# --- Main ---
+# ── Stage 4: clone the dotfiles repo ───────────────────────────────────────
+
+clone_repo() {
+    if [ -d "$DOTFILES_DIR/.git" ]; then
+        log_ok "Dotfiles repo already at $DOTFILES_DIR"
+        return 0
+    fi
+    log_info "Cloning $DOTFILES_REPO_URL -> $DOTFILES_DIR"
+    git clone "$DOTFILES_REPO_URL" "$DOTFILES_DIR"
+}
+
+# ── Stage 5: write chezmoi config ──────────────────────────────────────────
+
+write_chezmoi_config() {
+    cfg_dir="$HOME/.config/chezmoi"
+    cfg_file="$cfg_dir/chezmoi.toml"
+    mkdir -p "$cfg_dir"
+
+    # Overwrite every bootstrap — the only field we set is sourceDir, and
+    # it's always the same.  No interactive data here; the repo is personal.
+    cat > "$cfg_file" <<EOF
+# Generated by $DOTFILES_DIR/bootstrap.sh — do not edit by hand.
+sourceDir = "$DOTFILES_DIR"
+EOF
+    log_ok "Wrote chezmoi config: $cfg_file"
+}
+
+# ── Stage 6: run chezmoi apply ─────────────────────────────────────────────
+
+run_chezmoi_apply() {
+    log_info "Running chezmoi apply..."
+    chezmoi apply
+    log_ok "chezmoi apply finished"
+}
+
+# ── main ───────────────────────────────────────────────────────────────────
 
 main() {
-  log_info "Dotfiles bootstrap starting..."
-
-  install_ansible
-  install_collections
-  clone_dotfiles
-  setup_config
-
-  log_info "Running Ansible playbook..."
-  cd "${DOTFILES_DIR}"
-  ansible-playbook site.yml "$@"
-
-  log_ok "Bootstrap complete!"
+    log_info "Dotfiles bootstrap starting..."
+    detect_os
+    install_prereqs
+    install_chezmoi
+    install_mise
+    clone_repo
+    write_chezmoi_config
+    run_chezmoi_apply
+    log_ok "Bootstrap complete!"
+    log_info "Open a new shell to pick up zsh, mise shims and tool paths."
 }
 
 main "$@"

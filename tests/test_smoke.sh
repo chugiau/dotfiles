@@ -39,14 +39,23 @@ check_sh_parse() {
 
 check_no_bashisms() {
     # Look for common bashisms that break POSIX sh.
+    #
+    # Patterns:
+    #   [[ / ]]         bash test
+    #   =~              regex match
+    #   $((x++))        postfix ++
+    #   ^local / ;local bash-only 'local' keyword
+    #   &>              bash redirection
+    #   <<<             here-string
     f="$SCRIPT_DIR/$1"
     if [ ! -f "$f" ]; then
         fail "no-bashisms: $1 (file missing)"
         return
     fi
-    if grep -nE '\[\[|\]\]|=~|\$\(\([^)]*\+\+|\blocal\b|&>|<<<' "$f" >/dev/null 2>&1; then
+    pat='\[\[|\]\]|=~|\$\(\([^)]*\+\+|(^|[[:space:]]|;)local[[:space:]]|&>[^>]|<<<'
+    if grep -nE "$pat" "$f" >/dev/null 2>&1; then
         fail "no-bashisms: $1 (found bashism — see grep)"
-        grep -nE '\[\[|\]\]|=~|\$\(\([^)]*\+\+|\blocal\b|&>|<<<' "$f" >&2 || true
+        grep -nE "$pat" "$f" >&2 || true
     else
         ok "no-bashisms: $1"
     fi
