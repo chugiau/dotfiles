@@ -1,0 +1,16 @@
+# mise tool manifest
+#
+# Defines the CLI toolchain managed by mise.  `dotfiles install` runs
+# `mise install` which materialises every tool listed here under
+# ~/.local/share/mise/installs, then shims them into ~/.local/share/mise/shims
+# (already on PATH via the login shell).
+#
+# To add a tool: append it here and re-run `dotfiles install`.
+# To pin a version: replace "latest" with an explicit version string.
+
+[tools]
+neovim  = "latest"
+bat     = "latest"
+eza     = "latest"
+lazygit = "latest"
+glow    = "latest"
