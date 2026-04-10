@@ -3,8 +3,8 @@
 # statusline-command.sh — Claude Code statusline renderer.
 #
 # Reads a JSON payload from stdin (provided by Claude Code) and prints a
-# three-line statusline with model info, git state, context/rate-limit bars,
-# token stats, cache metrics, and cost.
+# multi-line statusline with model info, git state, context/rate-limit bars,
+# token stats, cache metrics, cost, and timing info.
 #
 # Compatibility: bash 3.2+, macOS and Linux (POSIX-safe where possible).
 
@@ -16,7 +16,8 @@ readonly _PATH_EXTRA="/usr/local/bin:/usr/bin:/bin:/home/linuxbrew/.linuxbrew/bi
 # ANSI color codes
 readonly GREEN='\033[0;32m'
 readonly RED='\033[0;31m'
-readonly YELLOW='\033[0;33m'
+readonly ORANGE='\033[0;33m'
+readonly YELLOW='\033[1;33m'
 readonly MAGENTA='\033[0;35m'
 readonly CYAN='\033[0;36m'
 readonly RESET='\033[0m'
@@ -105,6 +106,7 @@ extract_fields() {
   project_dir=$(echo "${input}" | jq -r '.workspace.project_dir // .workspace.current_dir // .cwd // ""')
   transcript_path=$(echo "${input}" | jq -r '.transcript_path // ""')
   session_id=$(echo "${input}" | jq -r '.session_id // ""')
+  git_worktree=$(echo "${input}" | jq -r '.workspace.git_worktree // ""')
 
   used_pct=$(echo "${input}"       | jq -r '.context_window.used_percentage // empty')
   total_input=$(echo "${input}"    | jq -r '.context_window.total_input_tokens // 0')
@@ -352,16 +354,40 @@ count_subagents() {
 }
 
 # ---------------------------------------------------------------------------
+# cache_pct_color
+# ---------------------------------------------------------------------------
+# Returns the ANSI color escape for a cache hit-rate percentage.
+# Higher hit rate = better, so the color scale is inverted vs pct_color:
+#   [0,  40) → red     (poor cache performance)
+#   [40, 80) → orange  (moderate)
+#   [80, 90) → yellow  (good)
+#   [90,100] → green   (excellent)
+#
+# Arguments:
+#   $1 - integer percentage (0–100)
+#######################################
+cache_pct_color() {
+  local pct="${1:-0}"
+  if [[ "${pct}" -ge 90 ]]; then
+    printf "%s" "${GREEN}"
+  elif [[ "${pct}" -ge 80 ]]; then
+    printf "%s" "${YELLOW}"
+  elif [[ "${pct}" -ge 40 ]]; then
+    printf "%s" "${ORANGE}"
+  else
+    printf "%s" "${RED}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # build_line1
 # ---------------------------------------------------------------------------
 # Assembles and prints line 1:
-#   model | folder [git branch] [git status] | session time · tokens [sub-agents]
+#   model | folder [worktree] [git branch] [git status] | tokens [sub-agents]
 #######################################
 build_line1() {
-  local session_mins="${1}"
-  local active_time_str="${2}"
-  local total_tokens="${3}"
-  local subagent_count="${4}"
+  local total_tokens="${1}"
+  local subagent_count="${2}"
 
   local line=""
 
@@ -369,10 +395,13 @@ build_line1() {
   line="${line}🧠 ${BOLD}[${model_name}]${RESET}"
   line="${line} | "
 
-  # Folder + git branch
+  # Folder + git worktree + git branch
   local folder_name
   folder_name=$(basename "${project_dir}")
   line="${line}📁 ${YELLOW}${folder_name}${RESET}"
+  if [[ -n "${git_worktree}" ]]; then
+    line="${line} 🪵 ${CYAN}${git_worktree}${RESET}"
+  fi
   if [[ -n "${git_branch}" ]]; then
     line="${line} 🌿 git:(${MAGENTA}${git_branch}${RESET})"
   fi
@@ -389,12 +418,8 @@ build_line1() {
 
   line="${line} | "
 
-  # Session time + active task time + tokens
-  line="${line}⏱ ${session_mins}m"
-  if [[ -n "${active_time_str}" ]]; then
-    line="${line} (active: ${CYAN}${active_time_str}${RESET})"
-  fi
-  line="${line} · ${total_tokens} tokens"
+  # Tokens
+  line="${line}${total_tokens} tokens"
 
   # Sub-agents
   if [[ "${subagent_count}" -gt 0 ]] 2>/dev/null; then
@@ -404,6 +429,32 @@ build_line1() {
   fi
 
   printf "%b" "${line}"
+}
+
+# ---------------------------------------------------------------------------
+# pct_color
+# ---------------------------------------------------------------------------
+# Returns the ANSI color escape for a given usage percentage.
+# Thresholds (used / consumed perspective — higher pct = more used = worse):
+#   [0,  40) → green   (plenty remaining)
+#   [40, 80) → orange  (moderate usage)
+#   [80, 90) → yellow  (high usage)
+#   [90,100] → red     (critical)
+#
+# Arguments:
+#   $1 - integer percentage (0–100)
+#######################################
+pct_color() {
+  local pct="${1:-0}"
+  if [[ "${pct}" -ge 90 ]]; then
+    printf "%s" "${RED}"
+  elif [[ "${pct}" -ge 80 ]]; then
+    printf "%s" "${YELLOW}"
+  elif [[ "${pct}" -ge 40 ]]; then
+    printf "%s" "${ORANGE}"
+  else
+    printf "%s" "${GREEN}"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -420,29 +471,32 @@ build_line2() {
   local seven_day_reset="${5}"
 
   local line=""
-  local ctx_bar
+  local ctx_bar ctx_color
   ctx_bar=$(make_bar "${ctx_pct}" 10)
+  ctx_color=$(pct_color "${ctx_pct}")
 
   # Context bar
-  line="${line}🗃️ Context ${GREEN}${ctx_bar}${RESET} ${GREEN}${ctx_pct}%${RESET}"
+  line="${line}🗃️ Context ${ctx_color}${ctx_bar}${RESET} ${ctx_color}${ctx_pct}%${RESET}"
 
   # 5-hour rate-limit bar
   if [[ -n "${five_hour_pct}" ]]; then
-    local five_pct five_bar five_str
+    local five_pct five_bar five_str five_color
     five_pct=$(printf "%.0f" "${five_hour_pct}")
     five_bar=$(make_bar "${five_pct}" 10)
     five_str=$(format_reset_countdown "${five_hour_reset}" "hm")
-    line="${line} | 🕔 Usage ${GREEN}${five_bar}${RESET} ${GREEN}${five_pct}%${RESET}"
+    five_color=$(pct_color "${five_pct}")
+    line="${line} | 🕔 Usage ${five_color}${five_bar}${RESET} ${five_color}${five_pct}%${RESET}"
     [[ -n "${five_str}" ]] && line="${line} ${five_str}"
   fi
 
   # 7-day rate-limit bar
   if [[ -n "${seven_day_pct}" ]]; then
-    local seven_pct seven_bar seven_str
+    local seven_pct seven_bar seven_str seven_color
     seven_pct=$(printf "%.0f" "${seven_day_pct}")
     seven_bar=$(make_bar "${seven_pct}" 10)
     seven_str=$(format_reset_countdown "${seven_day_reset}" "dh")
-    line="${line} | 📅 Weekly ${GREEN}${seven_bar}${RESET} ${GREEN}${seven_pct}%${RESET}"
+    seven_color=$(pct_color "${seven_pct}")
+    line="${line} | 📅 Weekly ${seven_color}${seven_bar}${RESET} ${seven_color}${seven_pct}%${RESET}"
     [[ -n "${seven_str}" ]] && line="${line} ${seven_str}"
   fi
 
@@ -456,17 +510,30 @@ build_line2() {
 # build_line3
 # ---------------------------------------------------------------------------
 # Assembles and prints line 3:
-#   CLAUDE.md count | hooks | [cache stats] | [cost]
+#   CLAUDE.md count | hooks | [cache stats] | [cost] | time info
+#
+# If the time segment would make the line too long (>120 visible chars),
+# it is emitted as a separate line 4 instead.
+#
+# Arguments:
+#   $1 - CLAUDE.md count
+#   $2 - hooks count
+#   $3 - cost string (may be empty)
+#   $4 - active_time_str (time Claude was actively working, e.g. "5m")
+#   $5 - session_mins (whole minutes since session start)
 #######################################
 build_line3() {
   local claude_md_count="${1}"
   local hooks_count="${2}"
   local cost="${3}"
+  local active_time_str="${4}"
+  local session_mins="${5}"
 
   local line=""
   line="${line}${claude_md_count} CLAUDE.md | 🪝 ${hooks_count} hooks"
 
   # Cache hit rate and per-call token stats
+  # Color thresholds: [0,40)→red  [40,80)→orange  [80,90)→yellow  [90,100]→green
   if [[ -n "${cur_input}" ]]; then
     local total_for_cache cache_hit_pct cache_color cur_input_fmt cur_output_fmt
     total_for_cache=$(( cur_input + cur_cache_write + cur_cache_read ))
@@ -475,11 +542,7 @@ build_line3() {
     else
       cache_hit_pct=0
     fi
-    if [[ "${cache_hit_pct}" -ge 80 ]]; then
-      cache_color="${GREEN}"
-    else
-      cache_color="${RED}"
-    fi
+    cache_color=$(cache_pct_color "${cache_hit_pct}")
     cur_input_fmt=$(compact_tokens "${cur_input}")
     cur_output_fmt=$(compact_tokens "${cur_output}")
     line="${line} | cache: ${cache_color}${cache_hit_pct}%${RESET} | in: ${cur_input_fmt} out: ${cur_output_fmt}"
@@ -487,7 +550,41 @@ build_line3() {
 
   [[ -n "${cost}" ]] && line="${line} | 💰 ${cost}"
 
-  printf "%b" "${line}"
+  # Build timing segment: ⚡ <active_time> | 🕐 <session_mins>m
+  local time_seg=""
+  if [[ -n "${active_time_str}" ]] || [[ -n "${session_mins}" ]]; then
+    local active_part session_part
+    active_part=""
+    session_part=""
+    [[ -n "${active_time_str}" ]] && active_part="⚡ ${active_time_str}"
+    [[ -n "${session_mins}" ]]    && session_part="🕐 ${session_mins}m"
+
+    if [[ -n "${active_part}" ]] && [[ -n "${session_part}" ]]; then
+      time_seg="${active_part} | ${session_part}"
+    elif [[ -n "${active_part}" ]]; then
+      time_seg="${active_part}"
+    else
+      time_seg="${session_part}"
+    fi
+  fi
+
+  if [[ -n "${time_seg}" ]]; then
+    # Strip ANSI escapes to estimate visible length for overflow detection
+    local visible_line
+    visible_line=$(printf "%b" "${line}" | sed 's/\x1b\[[0-9;]*m//g')
+    local time_seg_visible="${time_seg}"  # time_seg has no ANSI codes
+
+    if [[ $(( ${#visible_line} + 3 + ${#time_seg_visible} )) -le 120 ]]; then
+      # Fits on line 3
+      line="${line} | ${time_seg}"
+      printf "%b" "${line}"
+    else
+      # Overflow to line 4
+      printf "%b\n%b" "${line}" "${time_seg}"
+    fi
+  else
+    printf "%b" "${line}"
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -532,12 +629,13 @@ main() {
   fi
 
   # Assemble output lines
-  local line1 line2 line3
-  line1=$(build_line1 "${session_mins}" "${active_time_str}" "${total_tokens}" "${subagent_count}")
+  local line1 line2 line3_output
+  line1=$(build_line1 "${total_tokens}" "${subagent_count}")
   line2=$(build_line2 "${ctx_pct}" "${five_hour_pct}" "${five_hour_reset}" "${seven_day_pct}" "${seven_day_reset}")
-  line3=$(build_line3 "${claude_md_count}" "${hooks_count}" "${cost}")
+  # build_line3 may emit 1 or 2 lines (the second contains timing info overflow)
+  line3_output=$(build_line3 "${claude_md_count}" "${hooks_count}" "${cost}" "${active_time_str}" "${session_mins}")
 
-  printf '%b\n%b\n%b\n' "${line1}" "${line2}" "${line3}"
+  printf '%b\n%b\n%b\n' "${line1}" "${line2}" "${line3_output}"
 }
 
 main "$@"
