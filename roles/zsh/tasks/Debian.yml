@@ -1,7 +1,0 @@
----
-- name: "zsh | Debian | Install zsh"
-  ansible.builtin.apt:
-    name: zsh
-    state: present
-    update_cache: true
-  become: true

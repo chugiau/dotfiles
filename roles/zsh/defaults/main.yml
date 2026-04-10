@@ -1,5 +1,0 @@
----
-zsh_omz_repo: https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
-zsh_p10k_repo: https://github.com/romkatv/powerlevel10k.git
-zsh_omz_dir: "{{ ansible_facts.env.HOME }}/.oh-my-zsh"
-zsh_p10k_dir: "{{ ansible_facts.env.HOME }}/.oh-my-zsh/custom/themes/powerlevel10k"

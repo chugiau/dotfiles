@@ -1,8 +1,0 @@
----
-# Arch always has up-to-date neovim in [extra]
-- name: "neovim | Archlinux | Install neovim"
-  community.general.pacman:
-    name: neovim
-    state: present
-    update_cache: true
-  become: true

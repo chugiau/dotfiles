@@ -1,9 +1,11 @@
 **/.env
 **/*.pyc
 
-# Ansible local config (user-specific overrides)
-group_vars/all.yml
-/tmp/ansible_facts_cache/
+# Secret *.env files — the only committed form is the *.env.example template.
+home/dot_config/dotfiles/secrets/*.env
+!home/dot_config/dotfiles/secrets/*.env.example
+**/credentials.env
+
 *.test/
 *.ignore/
 *.nosync/

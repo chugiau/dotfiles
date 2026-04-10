@@ -1,6 +1,0 @@
----
-- name: "pre | Detect WSL environment"
-  ansible.builtin.set_fact:
-    is_wsl: >-
-      {{ ansible_facts.kernel is defined
-         and ansible_facts.kernel is search('microsoft', ignorecase=True) }}

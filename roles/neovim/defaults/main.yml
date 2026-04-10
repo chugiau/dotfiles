@@ -1,4 +1,0 @@
----
-neovim_min_version: "0.11"
-nvim_repo: https://github.com/NvChad/starter.git
-nvim_config_dir: "{{ ansible_facts.env.HOME }}/.config/nvim"
