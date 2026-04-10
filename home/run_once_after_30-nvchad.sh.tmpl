@@ -1,0 +1,39 @@
+#!/bin/sh
+# Clone the NvChad starter config into ~/.config/nvim and run the first
+# headless Lazy sync so plugins are ready on first nvim launch.
+#
+# Runs once.  If ~/.config/nvim already has an init.lua, does nothing.
+# If the directory exists without init.lua, it's moved aside to
+# ~/.config/nvim.backup.<timestamp> before cloning.
+
+set -eu
+
+log() { printf '\033[0;34m[nvchad]\033[0m %s\n' "$*"; }
+
+NVIM_DIR="$HOME/.config/nvim"
+NVIM_REPO="https://github.com/NvChad/starter.git"
+
+if [ -f "$NVIM_DIR/init.lua" ]; then
+    log "nvim config already present — skipping."
+    exit 0
+fi
+
+if [ -d "$NVIM_DIR" ]; then
+    backup="${NVIM_DIR}.backup.$(date +%s)"
+    log "Backing up existing $NVIM_DIR -> $backup"
+    mv "$NVIM_DIR" "$backup"
+fi
+
+log "Cloning $NVIM_REPO -> $NVIM_DIR"
+git clone --depth=1 "$NVIM_REPO" "$NVIM_DIR"
+
+# Make sure mise-shimmed nvim (or any $PATH nvim) is reachable.
+PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH"
+export PATH
+
+if command -v nvim >/dev/null 2>&1; then
+    log "Running headless Lazy sync..."
+    nvim --headless "+Lazy! sync" +qa || true
+else
+    log "nvim not in PATH yet — skipping initial Lazy sync."
+fi

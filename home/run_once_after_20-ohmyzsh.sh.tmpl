@@ -1,0 +1,28 @@
+#!/bin/sh
+# Install oh-my-zsh + powerlevel10k, preserving the chezmoi-managed .zshrc.
+#
+# Runs exactly once (on first apply).  The KEEP_ZSHRC=yes flag is critical
+# — without it the oh-my-zsh installer would clobber the zshrc chezmoi
+# just laid down.
+
+set -eu
+
+log() { printf '\033[0;34m[ohmyzsh]\033[0m %s\n' "$*"; }
+
+ZSH_DIR="${ZSH:-$HOME/.oh-my-zsh}"
+P10K_DIR="$ZSH_DIR/custom/themes/powerlevel10k"
+
+if [ ! -d "$ZSH_DIR" ]; then
+    log "Installing oh-my-zsh (unattended, KEEP_ZSHRC=yes)..."
+    RUNZSH=no CHSH=no KEEP_ZSHRC=yes \
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+else
+    log "oh-my-zsh already installed — skipping."
+fi
+
+if [ ! -d "$P10K_DIR" ]; then
+    log "Cloning powerlevel10k..."
+    git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR"
+else
+    log "powerlevel10k already cloned — skipping."
+fi

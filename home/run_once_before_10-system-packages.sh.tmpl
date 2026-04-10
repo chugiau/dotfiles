@@ -1,0 +1,78 @@
+#!/bin/sh
+# Install system-level packages that need the distro package manager.
+#
+# chezmoi re-runs this script whenever its contents change.  Everything
+# here is idempotent — the underlying package managers skip already
+# installed packages.
+#
+# Targets:
+#   darwin   -> brew
+#   debian   -> apt
+#   arch     -> pacman
+#   fedora   -> dnf
+
+set -eu
+
+log() { printf '\033[0;34m[system-packages]\033[0m %s\n' "$*"; }
+die() { printf '\033[0;31m[system-packages]\033[0m %s\n' "$*" >&2; exit 1; }
+
+need_sudo() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        die "Need root or sudo to run: $*"
+    fi
+}
+
+install_darwin() {
+    if ! command -v brew >/dev/null 2>&1; then
+        log "Installing Homebrew..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+    log "brew install git git-lfs jq gnupg zsh curl wget"
+    brew install git git-lfs jq gnupg zsh curl wget
+}
+
+install_debian() {
+    log "apt-get update && install system packages"
+    need_sudo apt-get update -qq
+    need_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+        git git-lfs jq openssh-client gnupg zsh curl wget unzip ca-certificates \
+        build-essential
+}
+
+install_arch() {
+    log "pacman -Syu --needed"
+    need_sudo pacman -Sy --noconfirm --needed \
+        git git-lfs jq openssh gnupg zsh curl wget unzip base-devel
+}
+
+install_fedora() {
+    log "dnf install system packages"
+    need_sudo dnf install -y \
+        git git-lfs jq openssh-clients gnupg2 zsh curl wget unzip
+    need_sudo dnf groupinstall -y "Development Tools" || true
+}
+
+{{- /* Go-template dispatch on OS + distro */}}
+{{ if eq .chezmoi.os "darwin" -}}
+install_darwin
+{{ else if eq .chezmoi.os "linux" -}}
+{{-   $id := .chezmoi.osRelease.id }}
+{{-   if or (eq $id "ubuntu") (eq $id "debian") (eq $id "pop") (eq $id "linuxmint") }}
+install_debian
+{{-   else if or (eq $id "arch") (eq $id "manjaro") (eq $id "endeavouros") }}
+install_arch
+{{-   else if eq $id "fedora" }}
+install_fedora
+{{-   else }}
+echo "[system-packages] unknown distro '{{ $id }}' — skipping" >&2
+{{-   end }}
+{{ else -}}
+echo "[system-packages] unsupported OS '{{ .chezmoi.os }}' — skipping" >&2
+{{ end -}}
+
+# Finalise git-lfs registration.  Harmless if it's already set up.
+git lfs install --skip-repo >/dev/null 2>&1 || true

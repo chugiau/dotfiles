@@ -1,0 +1,30 @@
+#!/bin/sh
+# Install the secret-scan pre-commit hook into the dotfiles repo itself.
+#
+# chezmoi re-runs this script whenever the hook content changes — the
+# hash below makes chezmoi see "new" script bytes.  The hook lives in
+# the chezmoi-managed runtime tree and is copied into
+# $HOME/.dotfiles/.git/hooks/ for git to pick up.
+#
+# hook-content-hash: {{ include "dot_config/dotfiles/hooks/executable_pre-commit" | sha256sum }}
+
+set -eu
+
+log() { printf '\033[0;34m[git-hooks]\033[0m %s\n' "$*"; }
+
+REPO="$HOME/.dotfiles"
+HOOK_SRC="$HOME/.config/dotfiles/hooks/pre-commit"
+HOOK_DST="$REPO/.git/hooks/pre-commit"
+
+if [ ! -d "$REPO/.git" ]; then
+    log "$REPO is not a git working tree — skipping."
+    exit 0
+fi
+
+if [ ! -f "$HOOK_SRC" ]; then
+    log "Hook source $HOOK_SRC missing — chezmoi apply may not have run yet."
+    exit 0
+fi
+
+log "Installing pre-commit hook -> $HOOK_DST"
+install -m 0755 "$HOOK_SRC" "$HOOK_DST"

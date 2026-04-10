@@ -1,0 +1,46 @@
+#!/bin/sh
+# Switch the user's login shell to zsh.
+#
+# Runs once.  Skips if:
+#   - zsh is not installed,
+#   - zsh is already the login shell,
+#   - we're root (no point; interactive root shells are handled elsewhere).
+#
+# Adds the zsh binary path to /etc/shells first if needed, because chsh
+# refuses shells that are not listed there.
+
+set -eu
+
+log() { printf '\033[0;34m[default-shell]\033[0m %s\n' "$*"; }
+
+ZSH_PATH="$(command -v zsh || true)"
+if [ -z "$ZSH_PATH" ]; then
+    log "zsh not installed — skipping chsh."
+    exit 0
+fi
+
+current="$(getent passwd "$USER" 2>/dev/null | cut -d: -f7 || echo "${SHELL:-}")"
+if [ "$current" = "$ZSH_PATH" ]; then
+    log "zsh is already the login shell ($current) — nothing to do."
+    exit 0
+fi
+
+# Ensure the shell is listed in /etc/shells.
+if [ -r /etc/shells ] && ! grep -qx "$ZSH_PATH" /etc/shells; then
+    log "Adding $ZSH_PATH to /etc/shells"
+    if [ "$(id -u)" -eq 0 ]; then
+        printf '%s\n' "$ZSH_PATH" >> /etc/shells
+    elif command -v sudo >/dev/null 2>&1; then
+        printf '%s\n' "$ZSH_PATH" | sudo tee -a /etc/shells >/dev/null
+    else
+        log "Cannot write /etc/shells without sudo — skipping chsh."
+        exit 0
+    fi
+fi
+
+log "chsh -> $ZSH_PATH"
+if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
+    sudo chsh -s "$ZSH_PATH" "$USER" 2>/dev/null || chsh -s "$ZSH_PATH" || true
+else
+    chsh -s "$ZSH_PATH" || true
+fi

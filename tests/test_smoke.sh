@@ -132,15 +132,16 @@ echo ""
 # ── Optional: chezmoi-based verification ────────────────────────────────────
 if command -v chezmoi >/dev/null 2>&1; then
     echo "[chezmoi]"
-    # Render each template in isolation to catch Go-template syntax errors.
+    # Render each template with the repo's source dir so `include` calls
+    # (which are relative to chezmoi's sourceDir) can resolve.
     for tmpl in "$SCRIPT_DIR"/home/run_*.sh.tmpl; do
         [ -f "$tmpl" ] || continue
         name="$(basename "$tmpl")"
-        if chezmoi execute-template < "$tmpl" > /dev/null 2>&1; then
+        if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" > /dev/null 2>&1; then
             ok "template renders: $name"
         else
             fail "template renders: $name"
-            chezmoi execute-template < "$tmpl" >&2 || true
+            chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" >&2 || true
         fi
     done
 else

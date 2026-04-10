@@ -1,0 +1,25 @@
+#!/bin/sh
+# Materialise every tool declared in the mise manifest.
+#
+# chezmoi re-runs this script whenever the mise config hash embedded
+# below changes — so editing home/dot_config/mise/config.toml
+# automatically triggers a fresh `mise install` on the next apply.
+#
+# mise-config-hash: {{ include "dot_config/mise/config.toml" | sha256sum }}
+
+set -eu
+
+log() { printf '\033[0;34m[mise-install]\033[0m %s\n' "$*"; }
+
+# mise usually drops its entrypoint under ~/.local/bin; make sure
+# a chezmoi apply triggered from a minimal login shell can still see it.
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+
+if ! command -v mise >/dev/null 2>&1; then
+    log "mise not in PATH — skipping install"
+    exit 0
+fi
+
+log "mise install (from ~/.config/mise/config.toml)"
+mise install
