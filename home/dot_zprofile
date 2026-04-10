@@ -1,10 +1,14 @@
-export DOTFILES="$HOME/.dotfiles"
+# Repo checkout (managed by chezmoi + mise; used by tooling only).
+export DOTFILES_REPO="$HOME/.dotfiles"
+# Runtime tree laid down by chezmoi — shell modules, secrets live here.
+export DOTFILES="$HOME/.config/dotfiles"
+
 export EDITOR="nvim"
 export VISUAL="nvim"
 
 # 自訂 PATH
 export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
-export PATH="$DOTFILES/shellscripts:$PATH"
+export PATH="$DOTFILES_REPO/shellscripts:$PATH"
 
 # 設定輸入法
 export INPUT_METHOD=fcitx
@@ -23,5 +27,5 @@ export ENABLE_LSP_TOOL=1
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 # Load local credentials (never committed)
-source "$DOTFILES/zsh/modules/secrets.zsh"
+source "$DOTFILES/modules/secrets.zsh"
 
