@@ -203,6 +203,27 @@ fi
 echo ""
 
 # ── Docker Desktop WSL2 compinit workaround ────────────────────────────────
+echo "[mise activate]"
+# dot_zshrc must run `mise activate zsh` so the shell session picks up
+# shims + hook-env; without this, tools installed by mise are invisible
+# in login shells even though `mise` itself is on PATH.
+if grep -q 'mise activate zsh' "$SCRIPT_DIR/home/dot_zshrc"; then
+    ok "dot_zshrc activates mise"
+else
+    fail "dot_zshrc does not activate mise (eval \"\$(mise activate zsh)\")"
+fi
+# The activation must be guarded so a machine without mise still loads.
+if awk '
+    /mise activate zsh/ && prev ~ /command -v mise/ { found=1 }
+    { prev = $0 }
+    END { exit(found ? 0 : 1) }
+' "$SCRIPT_DIR/home/dot_zshrc"; then
+    ok "mise activation is guarded by command -v mise"
+else
+    fail "mise activation is not guarded by command -v mise"
+fi
+echo ""
+
 echo "[wsl-docker-workaround]"
 if grep -q 'vendor-completions/_docker' "$SCRIPT_DIR/home/dot_zshrc"; then
     ok "dot_zshrc guards against dangling Docker Desktop WSL2 completion"

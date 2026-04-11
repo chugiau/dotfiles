@@ -56,6 +56,17 @@ fi
 # If you come from bash you might have to change your $PATH.
 export PATH=$HOME/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
+# Activate mise for interactive use.  This hooks into zsh's precmd so
+# project-local mise configs take effect on `cd`, and prepends the
+# mise shim directory to PATH so every tool declared in
+# ~/.config/mise/config.toml becomes callable.  Runs after ~/.local/bin
+# is on PATH so the mise entrypoint is reachable.  Guarded with
+# `command -v mise` so a machine that has not yet bootstrapped mise
+# still loads a working shell.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
+fi
+
 # Path to your Oh My Zsh installation.
 export ZSH="$HOME/.oh-my-zsh"
 
