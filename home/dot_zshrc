@@ -1,3 +1,15 @@
+# Docker Desktop WSL2 integration drops a symlink at
+# /usr/share/zsh/vendor-completions/_docker that points into the
+# /mnt/wsl/docker-desktop/... mount.  When Docker Desktop is not running
+# the mount goes away and the symlink dangles, causing compinit to emit
+#   compinit:527: no such file or directory: …/_docker
+# which then breaks p10k instant prompt on subsequent logins.
+# Drop the offending fpath entry in that edge case — Docker Desktop
+# repopulates it automatically the next time it starts.
+if [[ -L /usr/share/zsh/vendor-completions/_docker && ! -e /usr/share/zsh/vendor-completions/_docker ]]; then
+  fpath=("${(@)fpath:#/usr/share/zsh/vendor-completions}")
+fi
+
 # OPENSPEC:START
 # OpenSpec shell completions configuration
 fpath=("$HOME/.oh-my-zsh/custom/completions" $fpath)
