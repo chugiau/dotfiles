@@ -1,84 +1,27 @@
-**/.env
-**/*.pyc
+# ── OS / editor noise ──────────────────────────────────────────────────
+**/.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.*.sw?
+*~
 
-# age identities — never commit a private key.  Real secrets are stored
-# as chezmoi `encrypted_*` ciphertext, which IS safe to commit.
+# ── Build / language caches ────────────────────────────────────────────
+**/__pycache__/
+**/*.pyc
+node_modules/
+
+# ── Secret / key material ──────────────────────────────────────────────
+# Real secrets live as chezmoi `encrypted_*` source files (ciphertext,
+# safe to commit) or as template pulls from a password manager.  The
+# patterns below catch the plaintext forms that must never enter VCS.
 **/key.txt
 *.age
 **/credentials.env
+**/.env
 
+# ── Local experimentation / scratch ────────────────────────────────────
+# Conventional suffixes for work-in-progress trees kept outside git.
 *.test/
 *.ignore/
 *.nosync/
-config.symlink/nvim/lazy-lock.json
-config.symlink/spicetify/
-config.symlink/coc/extensions/
-config.symlink/chatgpt-cli/
-/config.symlink/configstore/update-notifier-@johannlai/gptcli.json
-config.symlink/gpt-cli/
-config.symlink/zotero-mcp/
-config.symlink/configstore/**
-config.symlink/configstore/*
-config.symlink/gh/
-config.symlink/yai.json
-config.symlink/joplin-desktop/
-config.symlink/gspread/service_account.json
-config.symlink/raycast/
-config.symlink/epy/states.db
-config.symlink/thefuck/*
-config.symlink/thefuck/**
-config.symlink/thefuck/__pycache__/*
-config.symlink/thefuck/__pycache__/settings.cpython-310.pyc
-config.symlink/thefuck/__pycache__/**
-config.symlink/yarn/
-**/config.symlink/op/**
-/config.symlink/op/**
-config.symlink/fish/
-config.symlink/gcloud/
-config.symlink/karabiner/
-config.symlink/copyq/*
-node_modules/*
-**/access_tokens.db
-**/gcloud/*
-**/.DS_Store
-**/__pycache__/*
-**/__pycache__/**
-**/.vim_auto_session.vim
-*/copyq/*
-*/HTLIN/*
-
-newsboat.symlink/cache.db
-newsboat.symlink/history.search
-
-tmux/tmux.symlink/plugins/tmux
-tmux/tmux.symlink/plugins/**
-pyscripts.symlink/openai_api.yaml
-Application_Support/Anki2/HTLIN/
-config.symlink/thefuck/__pycache__/settings.cpython-310.pyc
-
-claude.symlink/statsig/
-claude.symlink/todos/
-claude.symlink/debug/
-claude.symlink/projects/
-claude.symlink/logs
-claude.symlink/*.jsonl
-claude.symlink/file-history/
-claude.symlink/shell-snapshots/
-claude.symlink/ide/
-claude.symlink/plugins/*
-claude.symlink/stats-cache.json
-claude.symlink/context-snapshots/
-claude.symlink/transcripts/
-**/logs/
-**/codebase-maps/
-
-# Quarto
-docs/_book/
-docs/.quarto/
-docs/_freeze/
-docs/site_libs/
-docs/*.html
-docs/*.tex
-docs/*.pdf
-docs/**/*_files/
-.quarto/

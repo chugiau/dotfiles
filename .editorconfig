@@ -1,0 +1,33 @@
+# EditorConfig — https://editorconfig.org
+#
+# Indent conventions observed in this repo:
+#   * POSIX sh scripts (bootstrap.sh, bin/dotfiles, run_*.sh.tmpl,
+#     pre-commit hook, tests/*.sh): 4-space blocks.
+#   * zsh rc / modules (dot_zshrc, dot_zprofile, modules/*.zsh): 2-space.
+#   * TOML / Markdown / YAML:                                    2-space.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# POSIX sh scripts — 4-space blocks.
+[*.{sh,bash}]
+indent_size = 4
+
+# chezmoi run_* templates are POSIX sh underneath a Go-template prologue.
+[*.sh.tmpl]
+indent_size = 4
+
+# No-extension POSIX sh entrypoints (CLI wrapper + pre-commit hook).
+[{bin/dotfiles,home/dot_config/dotfiles/hooks/executable_pre-commit}]
+indent_style = space
+indent_size = 4
+
+# Markdown: two trailing spaces mean "hard line break" — don't strip them.
+[*.md]
+trim_trailing_whitespace = false

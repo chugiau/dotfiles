@@ -67,11 +67,21 @@ echo ""
 # ── Top-level files ─────────────────────────────────────────────────────────
 echo "[structure]"
 check_exists ".chezmoiroot"
+check_exists ".editorconfig"
+check_exists ".gitattributes"
+check_exists ".gitignore"
 check_exists "bootstrap.sh"
 check_exists "bin/dotfiles"
 check_exists "README.md"
 check_exists "CLAUDE.md"
 check_exists "AGENTS.md"
+for f in .editorconfig .gitattributes .gitignore; do
+    if [ -s "$SCRIPT_DIR/$f" ]; then
+        ok "non-empty: $f"
+    else
+        fail "empty: $f"
+    fi
+done
 
 # .chezmoiroot content check
 if [ -f "$SCRIPT_DIR/.chezmoiroot" ]; then
@@ -357,6 +367,91 @@ if grep -q 'secrets\.zsh' "$SCRIPT_DIR/CLAUDE.md"; then
     fail "CLAUDE.md still references the removed secrets.zsh loader"
 else
     ok "CLAUDE.md no longer mentions secrets.zsh"
+fi
+echo ""
+
+# ── .editorconfig ──────────────────────────────────────────────────────────
+echo "[editorconfig]"
+_ec="$SCRIPT_DIR/.editorconfig"
+if grep -q '^root *= *true' "$_ec"; then
+    ok ".editorconfig declares root = true"
+else
+    fail ".editorconfig does not declare root = true"
+fi
+# POSIX sh in this repo uses 4 spaces.  Must appear within some [*.sh*] section.
+if awk '
+    /^\[/                                 { section = $0 }
+    section ~ /\.sh/ && /indent_size *= *4/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_ec"; then
+    ok ".editorconfig sets POSIX sh to 4-space indent"
+else
+    fail ".editorconfig does not set POSIX sh to 4-space indent"
+fi
+# chezmoi script templates inherit the POSIX sh rule.
+if awk '
+    /^\[/                                      { section = $0 }
+    section ~ /sh\.tmpl/ && /indent_size *= *4/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_ec"; then
+    ok ".editorconfig sets *.sh.tmpl to 4-space indent"
+else
+    fail ".editorconfig does not set *.sh.tmpl to 4-space indent"
+fi
+if grep -q '^end_of_line *= *lf' "$_ec"; then
+    ok ".editorconfig normalises line endings to LF"
+else
+    fail ".editorconfig does not normalise line endings to LF"
+fi
+echo ""
+
+# ── .gitattributes ─────────────────────────────────────────────────────────
+echo "[gitattributes]"
+_ga="$SCRIPT_DIR/.gitattributes"
+if grep -qE '^\* +text=auto +eol=lf' "$_ga"; then
+    ok ".gitattributes normalises all text to LF"
+else
+    fail ".gitattributes does not normalise text to LF"
+fi
+if grep -qE 'encrypted_\* +binary' "$_ga"; then
+    ok ".gitattributes marks chezmoi encrypted_* files as binary"
+else
+    fail ".gitattributes does not mark encrypted_* files as binary"
+fi
+if grep -qE '\*\.sh\.tmpl +linguist-language=Shell' "$_ga"; then
+    ok ".gitattributes hints linguist that *.sh.tmpl is Shell"
+else
+    fail ".gitattributes does not hint linguist for *.sh.tmpl"
+fi
+echo ""
+
+# ── .gitignore ─────────────────────────────────────────────────────────────
+echo "[gitignore]"
+_gi="$SCRIPT_DIR/.gitignore"
+if grep -q 'key\.txt' "$_gi"; then
+    ok ".gitignore blocks age private keys (key.txt)"
+else
+    fail ".gitignore does not block age private keys"
+fi
+if grep -qE '(^|/)\*\.age' "$_gi"; then
+    ok ".gitignore blocks *.age identity files"
+else
+    fail ".gitignore does not block *.age identity files"
+fi
+if grep -q 'credentials\.env' "$_gi"; then
+    ok ".gitignore blocks plaintext credentials.env"
+else
+    fail ".gitignore does not block plaintext credentials.env"
+fi
+if grep -q '\.DS_Store' "$_gi"; then
+    ok ".gitignore hides .DS_Store"
+else
+    fail ".gitignore does not hide .DS_Store"
+fi
+if grep -q 'config\.symlink' "$_gi"; then
+    fail ".gitignore still references the legacy config.symlink/ layout"
+else
+    ok ".gitignore no longer references the legacy config.symlink/ layout"
 fi
 echo ""
 

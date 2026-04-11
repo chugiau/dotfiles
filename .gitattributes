@@ -1,0 +1,30 @@
+# Normalise every text file to LF in both the repo and the working tree.
+# This repo is cloned on macOS, Linux, and WSL2 — CRLF has no place in
+# POSIX shell scripts that bootstrap a machine.
+* text=auto eol=lf
+
+# Belt-and-braces: mark the common text types explicitly so a stray
+# "binary-looking" first byte does not fool `text=auto`.
+*.sh       text eol=lf
+*.bash     text eol=lf
+*.zsh      text eol=lf
+*.sh.tmpl  text eol=lf
+*.toml     text eol=lf
+*.md       text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+
+# chezmoi age-encrypted source files carry ciphertext.  Marking them
+# binary keeps git from producing a meaningless diff and prevents any
+# EOL/normalisation pass from corrupting the payload.
+home/**/encrypted_* binary
+
+# Tell GitHub Linguist that the chezmoi run_* templates are shell
+# scripts.  Without this they default to "Smarty" because of the .tmpl
+# extension and the language stats on GitHub look wrong.
+*.sh.tmpl linguist-language=Shell
+
+# Keep tooling and test harness out of `git archive` tarballs.
+tests/          export-ignore
+.editorconfig   export-ignore
+.gitattributes  export-ignore
