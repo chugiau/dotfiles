@@ -190,6 +190,87 @@ else
 fi
 echo ""
 
+# ── mise doctor wired into install flow ────────────────────────────────────
+echo "[mise doctor]"
+if grep -q 'mise doctor' "$SCRIPT_DIR/home/run_onchange_after_10-mise-install.sh.tmpl"; then
+    ok "run_onchange_after_10-mise-install.sh.tmpl runs mise doctor"
+else
+    fail "run_onchange_after_10-mise-install.sh.tmpl does not run mise doctor"
+fi
+if grep -q 'mise doctor' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles install runs mise doctor"
+else
+    fail "bin/dotfiles install does not run mise doctor"
+fi
+echo ""
+
+# ── Docker Desktop WSL2 compinit workaround ────────────────────────────────
+echo "[wsl-docker-workaround]"
+if grep -q 'vendor-completions/_docker' "$SCRIPT_DIR/home/dot_zshrc"; then
+    ok "dot_zshrc guards against dangling Docker Desktop WSL2 completion"
+else
+    fail "dot_zshrc is missing the Docker Desktop WSL2 completion guard"
+fi
+# Behavioural check: the snippet should drop a broken vendor dir from fpath
+if command -v zsh >/dev/null 2>&1; then
+    _workdir="$(mktemp -d)" || _workdir=""
+    if [ -n "$_workdir" ]; then
+        mkdir -p "$_workdir/vendor-completions"
+        ln -s "$_workdir/nonexistent" "$_workdir/vendor-completions/_docker"
+        _out="$(
+          VENDOR_DIR="$_workdir/vendor-completions" \
+          BROKEN_LINK="$_workdir/vendor-completions/_docker" \
+          zsh -c '
+            fpath=($VENDOR_DIR /usr/share/zsh/site-functions)
+            if [[ -L $BROKEN_LINK && ! -e $BROKEN_LINK ]]; then
+              fpath=("${(@)fpath:#$VENDOR_DIR}")
+            fi
+            print -r -- $fpath
+          ' 2>/dev/null
+        )"
+        rm -rf "$_workdir"
+        case "$_out" in
+            *vendor-completions*)
+                fail "fpath filter did not drop broken vendor-completions dir"
+                ;;
+            *)
+                ok "fpath filter drops broken vendor-completions dir"
+                ;;
+        esac
+    fi
+else
+    echo "  zsh not installed — skipping behavioural check"
+fi
+echo ""
+
+# ── Deferred secrets warning ───────────────────────────────────────────────
+echo "[secrets deferred warning]"
+_secrets_mod="$SCRIPT_DIR/home/dot_config/dotfiles/modules/secrets.zsh"
+if grep -q 'precmd' "$_secrets_mod"; then
+    ok "secrets.zsh registers a precmd hook for the warning"
+else
+    fail "secrets.zsh does not defer the warning via precmd"
+fi
+if command -v zsh >/dev/null 2>&1; then
+    _secrets_dir="$(mktemp -d)" || _secrets_dir=""
+    if [ -n "$_secrets_dir" ]; then
+        mkdir -p "$_secrets_dir/secrets"
+        printf 'TEST_KEY=test\n' > "$_secrets_dir/secrets/credentials.env.example"
+        _stderr_out="$(
+          DOTFILES="$_secrets_dir" zsh -c "source '$_secrets_mod'" 2>&1 >/dev/null
+        )"
+        rm -rf "$_secrets_dir"
+        if [ -z "$_stderr_out" ]; then
+            ok "secrets.zsh produces no stderr during sourcing"
+        else
+            fail "secrets.zsh produced stderr during sourcing: $_stderr_out"
+        fi
+    fi
+else
+    echo "  zsh not installed — skipping behavioural check"
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]

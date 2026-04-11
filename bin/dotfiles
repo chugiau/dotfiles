@@ -48,6 +48,9 @@ cmd_install() {
     chezmoi apply
     if has mise; then
         mise install
+        # Verify the install; mise doctor may exit non-zero on
+        # environment warnings so we surface the signal but don't abort.
+        mise doctor || log_fail "mise doctor reported issues — review output above"
     else
         log_fail "mise not installed — run bootstrap.sh first"
     fi
