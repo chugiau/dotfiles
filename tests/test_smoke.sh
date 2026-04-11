@@ -96,10 +96,8 @@ check_exists "home/dot_config/dotfiles/modules/empty_alias.zsh"
 check_exists "home/dot_config/dotfiles/modules/empty_functions.zsh"
 check_exists "home/dot_config/dotfiles/modules/empty_fzf.zsh"
 check_exists "home/dot_config/dotfiles/modules/pkg-quarantine.zsh"
-check_exists "home/dot_config/dotfiles/modules/secrets.zsh"
 check_exists "home/dot_config/dotfiles/modules/ssh-agent.zsh"
 check_exists "home/dot_config/dotfiles/hooks/executable_pre-commit"
-check_exists "home/dot_config/dotfiles/secrets/credentials.env.example"
 check_exists "home/dot_claude/executable_statusline-command.sh"
 echo ""
 
@@ -243,31 +241,101 @@ else
 fi
 echo ""
 
-# ── Deferred secrets warning ───────────────────────────────────────────────
-echo "[secrets deferred warning]"
-_secrets_mod="$SCRIPT_DIR/home/dot_config/dotfiles/modules/secrets.zsh"
-if grep -q 'precmd' "$_secrets_mod"; then
-    ok "secrets.zsh registers a precmd hook for the warning"
-else
-    fail "secrets.zsh does not defer the warning via precmd"
-fi
-if command -v zsh >/dev/null 2>&1; then
-    _secrets_dir="$(mktemp -d)" || _secrets_dir=""
-    if [ -n "$_secrets_dir" ]; then
-        mkdir -p "$_secrets_dir/secrets"
-        printf 'TEST_KEY=test\n' > "$_secrets_dir/secrets/credentials.env.example"
-        _stderr_out="$(
-          DOTFILES="$_secrets_dir" zsh -c "source '$_secrets_mod'" 2>&1 >/dev/null
-        )"
-        rm -rf "$_secrets_dir"
-        if [ -z "$_stderr_out" ]; then
-            ok "secrets.zsh produces no stderr during sourcing"
-        else
-            fail "secrets.zsh produced stderr during sourcing: $_stderr_out"
-        fi
+# ── chezmoi-native secrets migration ───────────────────────────────────────
+# The bespoke secrets.zsh loader is gone; secrets now ride on
+#   A) chezmoi's age encryption (encrypted_* source files), and
+#   B) template-function pulls from Bitwarden ({{ bitwardenFields … }}).
+echo "[secrets removed]"
+for gone in \
+    "home/dot_config/dotfiles/modules/secrets.zsh" \
+    "home/dot_config/dotfiles/secrets/credentials.env.example" \
+    "home/dot_config/dotfiles/secrets"; do
+    if [ -e "$SCRIPT_DIR/$gone" ]; then
+        fail "leftover: $gone (should be removed)"
+    else
+        ok "absent: $gone"
     fi
+done
+if grep -q 'modules/secrets\.zsh' "$SCRIPT_DIR/home/dot_zprofile"; then
+    fail "dot_zprofile still sources the old secrets.zsh module"
 else
-    echo "  zsh not installed — skipping behavioural check"
+    ok "dot_zprofile no longer sources secrets.zsh"
+fi
+echo ""
+
+echo "[chezmoi age wiring]"
+# Every distro branch in system-packages must install age so chezmoi can
+# encrypt/decrypt after a fresh bootstrap.
+_syspkgs="$SCRIPT_DIR/home/run_once_before_10-system-packages.sh.tmpl"
+for fn in install_darwin install_debian install_arch install_fedora; do
+    if awk -v fn="$fn" '
+        $0 ~ "^" fn "\\(\\) *\\{" { in_fn=1; next }
+        in_fn && /^\}/            { in_fn=0 }
+        in_fn && /(^|[[:space:]])age([[:space:]]|$)/ { found=1 }
+        END { exit(found ? 0 : 1) }
+    ' "$_syspkgs"; then
+        ok "$fn installs age"
+    else
+        fail "$fn does not install age"
+    fi
+done
+# bin/dotfiles must expose a secrets-init subcommand that generates the
+# age key and wires [age] into ~/.config/chezmoi/chezmoi.toml.
+if grep -q 'secrets-init' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles exposes a secrets-init subcommand"
+else
+    fail "bin/dotfiles has no secrets-init subcommand"
+fi
+if grep -q 'age-keygen' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles runs age-keygen for the chezmoi key"
+else
+    fail "bin/dotfiles does not call age-keygen"
+fi
+if grep -q 'encryption *= *"age"' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles writes encryption = \"age\" into chezmoi.toml"
+else
+    fail "bin/dotfiles does not write the age encryption block"
+fi
+echo ""
+
+echo "[pre-commit encrypted secrets guard]"
+_hook="$SCRIPT_DIR/home/dot_config/dotfiles/hooks/executable_pre-commit"
+# Old rule referenced secrets/*.env and must go; new rule must whitelist
+# encrypted_ prefixed files and *.env.tmpl templates.
+if grep -q 'secrets/.*\.env' "$_hook"; then
+    fail "pre-commit hook still references the removed secrets/ path"
+else
+    ok "pre-commit hook no longer references secrets/*.env"
+fi
+if grep -q 'encrypted_' "$_hook"; then
+    ok "pre-commit hook whitelists chezmoi encrypted_ files"
+else
+    fail "pre-commit hook does not whitelist chezmoi encrypted_ files"
+fi
+if grep -q 'key\.txt' "$_hook"; then
+    ok "pre-commit hook blocks age private keys (key.txt)"
+else
+    fail "pre-commit hook does not block age private keys"
+fi
+echo ""
+
+echo "[docs cover new secrets workflow]"
+for tok in "chezmoi.*encrypt" "age-keygen" "[Bb]itwarden"; do
+    if grep -qE "$tok" "$SCRIPT_DIR/README.md"; then
+        ok "README.md mentions '$tok'"
+    else
+        fail "README.md does not mention '$tok'"
+    fi
+done
+if grep -q 'secrets\.zsh' "$SCRIPT_DIR/README.md"; then
+    fail "README.md still references the removed secrets.zsh loader"
+else
+    ok "README.md no longer mentions secrets.zsh"
+fi
+if grep -q 'secrets\.zsh' "$SCRIPT_DIR/CLAUDE.md"; then
+    fail "CLAUDE.md still references the removed secrets.zsh loader"
+else
+    ok "CLAUDE.md no longer mentions secrets.zsh"
 fi
 echo ""
 

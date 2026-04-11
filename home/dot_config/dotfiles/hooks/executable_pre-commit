@@ -1,20 +1,44 @@
 #!/bin/sh
 #
-# Pre-commit hook: blocks secrets from entering VCS
+# Pre-commit hook: keeps plaintext secrets out of VCS.
 #
-# 1. Rejects staged files matching secrets/*.env
-# 2. Scans staged diffs for known token patterns
+# Policy after the chezmoi-native migration:
+#   * Plaintext *.env staged files are rejected — chezmoi encrypts real
+#     secrets as "encrypted_*" source files (ciphertext, safe to commit)
+#     and template-driven files end in ".env.tmpl" (no secret inside).
+#   * age private keys (key.txt, *.age) are never committed.
+#   * The diff is scanned for common provider token patterns.
 #
 
-# ── Check for staged secret files ────────────────────────────────────────────
+# ── Reject plaintext secret files ────────────────────────────────────────────
 
-secret_files=$(git diff --cached --name-only | grep -E '^secrets/.*\.env$' | grep -v '\.env\.example$')
+staged=$(git diff --cached --name-only)
+
+# Block plaintext *.env unless the file is chezmoi-encrypted (path element
+# prefixed with `encrypted_`) or a chezmoi template (*.env.tmpl).
+plaintext_env=$(
+    printf '%s\n' "$staged" |
+        grep -E '\.env$' |
+        grep -v 'encrypted_' |
+        grep -v '\.env\.tmpl$'
+)
+
+# Block age private keys outright.  Chezmoi's default identity path is
+# ~/.config/chezmoi/key.txt; `*.age` is the conventional extension for
+# encrypted identities.  Neither should ever be staged from this repo.
+key_files=$(
+    printf '%s\n' "$staged" |
+        grep -E '(^|/)key\.txt$|\.age$'
+)
+
+secret_files="$plaintext_env$key_files"
+secret_files=$(printf '%s\n' "$secret_files" | sed '/^$/d')
 
 if [ -n "$secret_files" ]; then
-  echo "\033[1;31m[pre-commit]\033[0m Blocked: secret files are staged:" >&2
-  echo "$secret_files" | sed 's/^/  /' >&2
-  echo "Run 'git reset HEAD <file>' to unstage." >&2
-  exit 1
+    printf '\033[1;31m[pre-commit]\033[0m Blocked: plaintext secrets staged:\n' >&2
+    printf '%s\n' "$secret_files" | sed 's/^/  /' >&2
+    printf 'Encrypt with `chezmoi add --encrypt <file>` or unstage with `git reset HEAD <file>`.\n' >&2
+    exit 1
 fi
 
 # ── Scan staged diffs for token patterns ─────────────────────────────────────
@@ -34,8 +58,8 @@ patterns="$patterns"'|(xoxp-[0-9a-zA-Z\-]+)'     # Slack User
 matches=$(echo "$diff_output" | grep -E '^\+[^+]' | grep -oE "$patterns")
 
 if [ -n "$matches" ]; then
-  echo "\033[1;31m[pre-commit]\033[0m Blocked: possible secrets detected in staged changes:" >&2
-  echo "$matches" | sort -u | sed 's/^/  /' >&2
-  echo "Remove the secrets and try again, or use --no-verify to bypass." >&2
-  exit 1
+    printf '\033[1;31m[pre-commit]\033[0m Blocked: possible secrets detected in staged changes:\n' >&2
+    printf '%s\n' "$matches" | sort -u | sed 's/^/  /' >&2
+    printf 'Remove the secrets and try again, or use --no-verify to bypass.\n' >&2
+    exit 1
 fi

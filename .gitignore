@@ -1,9 +1,10 @@
 **/.env
 **/*.pyc
 
-# Secret *.env files — the only committed form is the *.env.example template.
-home/dot_config/dotfiles/secrets/*.env
-!home/dot_config/dotfiles/secrets/*.env.example
+# age identities — never commit a private key.  Real secrets are stored
+# as chezmoi `encrypted_*` ciphertext, which IS safe to commit.
+**/key.txt
+*.age
 **/credentials.env
 
 *.test/

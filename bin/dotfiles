@@ -2,12 +2,13 @@
 # dotfiles — POSIX sh CLI wrapper around chezmoi + mise.
 #
 # Usage:
-#   dotfiles install      Apply chezmoi and install mise-managed tools
-#   dotfiles update       Update chezmoi source, mise tools, omz, p10k, nvim
-#   dotfiles link         Re-apply chezmoi (re-create managed files)
-#   dotfiles check        Dry-run (chezmoi diff)
-#   dotfiles doctor       Verify expected tools and runtime trees are present
-#   dotfiles edit         Open the dotfiles repo in $EDITOR
+#   dotfiles install         Apply chezmoi and install mise-managed tools
+#   dotfiles update          Update chezmoi source, mise tools, omz, p10k, nvim
+#   dotfiles link            Re-apply chezmoi (re-create managed files)
+#   dotfiles check           Dry-run (chezmoi diff)
+#   dotfiles doctor          Verify expected tools and runtime trees are present
+#   dotfiles secrets-init    Generate the age key and wire chezmoi.toml for encryption
+#   dotfiles edit            Open the dotfiles repo in $EDITOR
 
 set -eu
 
@@ -29,12 +30,14 @@ Commands:
   link             Re-apply chezmoi (re-create managed files / symlinks)
   check            Dry-run (chezmoi diff)
   doctor           Verify expected tools and runtime trees
+  secrets-init     Generate the age key and wire chezmoi.toml for encryption
   edit             Open the dotfiles repo in $EDITOR
 
 Examples:
   dotfiles install
   dotfiles update
   dotfiles doctor
+  dotfiles secrets-init
 EOF
 }
 
@@ -84,6 +87,71 @@ cmd_check() {
 
 cmd_edit() {
     "${EDITOR:-nvim}" "$DOTFILES_DIR"
+}
+
+# Generate the age identity used by chezmoi for file encryption and
+# idempotently wire the [age] block into ~/.config/chezmoi/chezmoi.toml.
+#
+# Running this repeatedly is safe:
+#   * An existing key.txt is never overwritten.
+#   * An existing [age] block in chezmoi.toml is left alone.
+cmd_secrets_init() {
+    if ! has age-keygen; then
+        log_fail "age-keygen not found — install 'age' first (apt/pacman/dnf/brew)"
+        exit 1
+    fi
+
+    cfg_dir="$HOME/.config/chezmoi"
+    cfg_file="$cfg_dir/chezmoi.toml"
+    key_file="$cfg_dir/key.txt"
+
+    mkdir -p "$cfg_dir"
+    chmod 700 "$cfg_dir"
+
+    if [ -f "$key_file" ]; then
+        log_ok "age key already present: $key_file"
+    else
+        log_ok "generating age key -> $key_file"
+        age-keygen -o "$key_file" 2>/dev/null
+        chmod 600 "$key_file"
+    fi
+
+    # Extract the public recipient line written as a comment by age-keygen:
+    #   # public key: age1xxxxx
+    recipient=$(awk '/^# public key:/ { print $NF; exit }' "$key_file")
+    if [ -z "$recipient" ]; then
+        log_fail "could not read public key from $key_file"
+        exit 1
+    fi
+
+    if [ ! -f "$cfg_file" ]; then
+        log_fail "chezmoi config missing: $cfg_file (run bootstrap.sh first)"
+        exit 1
+    fi
+
+    if grep -q '^encryption *= *"age"' "$cfg_file"; then
+        log_ok "chezmoi.toml already configured for age encryption"
+    else
+        log_ok "appending [age] block to $cfg_file"
+        cat >>"$cfg_file" <<EOF
+
+# Added by 'dotfiles secrets-init' — chezmoi file encryption via age.
+encryption = "age"
+[age]
+    identity = "$key_file"
+    recipient = "$recipient"
+EOF
+    fi
+
+    cat <<EOF
+
+Next steps:
+  * Encrypt a new file:   chezmoi add --encrypt ~/.config/dotfiles/credentials.env
+  * Edit encrypted file:  chezmoi edit ~/.config/dotfiles/credentials.env
+  * List encrypted files: chezmoi managed | grep '^encrypted_'
+  * Back up $key_file to your password manager — without it the
+    encrypted source files in this repo cannot be decrypted.
+EOF
 }
 
 cmd_doctor() {
@@ -163,12 +231,13 @@ cmd_doctor() {
 # ── dispatch ───────────────────────────────────────────────────────────────
 
 case "${1:-}" in
-    install) shift; cmd_install "$@" ;;
-    update)  cmd_update ;;
-    link)    cmd_link ;;
-    check)   shift; cmd_check "$@" ;;
-    doctor)  cmd_doctor ;;
-    edit)    cmd_edit ;;
+    install)       shift; cmd_install "$@" ;;
+    update)        cmd_update ;;
+    link)          cmd_link ;;
+    check)         shift; cmd_check "$@" ;;
+    doctor)        cmd_doctor ;;
+    secrets-init)  cmd_secrets_init ;;
+    edit)          cmd_edit ;;
     -h|--help|help|'') usage ;;
     *)
         echo "Unknown command: $1" >&2

@@ -1,6 +1,6 @@
 # Repo checkout (managed by chezmoi + mise; used by tooling only).
 export DOTFILES_REPO="$HOME/.dotfiles"
-# Runtime tree laid down by chezmoi — shell modules, secrets live here.
+# Runtime tree laid down by chezmoi — shell modules live here.
 export DOTFILES="$HOME/.config/dotfiles"
 
 export EDITOR="nvim"
@@ -25,7 +25,4 @@ export BROWSER=brave.exe
 export ENABLE_LSP_TOOL=1
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
-
-# Load local credentials (never committed)
-source "$DOTFILES/modules/secrets.zsh"
 
