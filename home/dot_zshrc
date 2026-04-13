@@ -195,10 +195,16 @@ fi
 # if pnpm is installed, load its environment
 if command -v pnpm >/dev/null 2>&1; then
   export PNPM_HOME="$HOME/.local/share/pnpm"
-  case ":$PATH:" in
-    *":$PNPM_HOME:"*) ;;
-    *) export PATH="$PNPM_HOME:$PATH" ;;
-  esac
+  # Only prepend PNPM_HOME to $PATH once pnpm has actually materialised
+  # a global-bin directory there. Prepending a phantom dir otherwise
+  # trips `mise doctor` on a fresh machine that has never installed a
+  # global pnpm package.
+  if [ -d "$PNPM_HOME" ]; then
+    case ":$PATH:" in
+      *":$PNPM_HOME:"*) ;;
+      *) export PATH="$PNPM_HOME:$PATH" ;;
+    esac
+  fi
 
   # Create completion for pnpm if not already present
   if [ ! -f "$HOME/.zsh/completions/_pnpm" ]; then
@@ -207,49 +213,52 @@ if command -v pnpm >/dev/null 2>&1; then
   fi
 fi
 
-# .NET
-export DOTNET_ROOT="$HOME/.dotnet"
-export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
-export DOTNET_CLI_TELEMETRY_OPTOUT=1
+# .NET — only when a real dotnet binary lives under ~/.dotnet.
+# Guarded on the binary (not the directory) because `~/.dotnet/corefx`
+# can linger as cruft on a machine that has never actually installed
+# dotnet, and prepending phantom paths here trips `mise doctor`.
+if [ -x "$HOME/.dotnet/dotnet" ]; then
+  export DOTNET_ROOT="$HOME/.dotnet"
+  export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
-# dotnet tab completion
-_dotnet_zsh_complete()
-{
-  local completions=("$(dotnet complete "$words")")
+  _dotnet_zsh_complete() {
+    local completions=("$(dotnet complete "$words")")
 
-  # If the completion list is empty, just continue with filename selection
-  if [ -z "$completions" ]
-  then
-    _arguments '*::arguments: _normal'
-    return
-  fi
+    if [ -z "$completions" ]; then
+      _arguments '*::arguments: _normal'
+      return
+    fi
 
-  # This is not a variable assignment, don't remove spaces!
-  _values = "${(ps:\n:)completions}"
-}
+    # This is not a variable assignment, don't remove spaces!
+    _values = "${(ps:\n:)completions}"
+  }
 
-compdef _dotnet_zsh_complete dotnet
+  compdef _dotnet_zsh_complete dotnet
+fi
 
-# bun completions
-[ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
-
-# bun
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+# bun — only when the standalone bun binary is installed under ~/.bun.
+# bun is otherwise managed by mise, which exposes it through its shim
+# directory without any PATH work here.
+if [ -x "$HOME/.bun/bin/bun" ]; then
+  export BUN_INSTALL="$HOME/.bun"
+  export PATH="$BUN_INSTALL/bin:$PATH"
+  [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+fi
 
 # VSCode terminal nshell integration
 [[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"
 
-
-# pnpm
-export PNPM_HOME="$HOME/.local/share/pnpm"
-case ":$PATH:" in
-  *":$PNPM_HOME:"*) ;;
-  *) export PATH="$PNPM_HOME:$PATH" ;;
-esac
-# pnpm end
-
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
+# Homebrew — detect macOS (/opt/homebrew, /usr/local) and Linuxbrew
+# (/home/linuxbrew/.linuxbrew) layouts. Machines without brew skip the
+# eval entirely.
+for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+  if [ -x "$_brew" ]; then
+    eval "$("$_brew" shellenv zsh)"
+    break
+  fi
+done
+unset _brew
 
 # peon-ping quick controls
 alias peon="bash $HOME/.claude/hooks/peon-ping/peon.sh"
