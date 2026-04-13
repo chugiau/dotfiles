@@ -120,7 +120,103 @@ sourcing, and mise's precmd hook is just appended to
 
 - `specs/007-mise-activate-last.md` (new)
 - `home/dot_zshrc` (move the `mise activate zsh` block to the bottom,
-  rewrite the comment header)
+  rewrite the comment header; switch the bun, dotnet, and pnpm blocks
+  from prepend to append per the amendment below)
 - `tests/test_smoke.sh` (one new assertion in `[mise activate]`:
   `mise activate zsh` line number exceeds every `export PATH=.*:$PATH`
-  line number)
+  line number; three new assertions in `[dot_zshrc guards]` that the
+  bun, dotnet, and pnpm blocks append rather than prepend)
+
+## Amendment — append is mandatory, ordering alone is not enough
+
+After landing the ordering fix above, `zsh -i -c 'mise doctor'` still
+reported three paths in front of mise tools:
+
+```
+1. mise tool paths are not first in PATH. These paths take precedence:
+     ~/.bun/bin
+     ~/.dotnet
+     ~/.dotnet/tools
+```
+
+`~/.local/share/pnpm` dropped off the list (because on this box
+`PNPM_HOME` was empty, so spec 003's `[ -d "$PNPM_HOME" ]` guard short-
+circuited the prepend), but bun and dotnet stayed ahead.
+
+**Root cause.** `mise activate zsh` runs in *hook-env* mode, not
+*shims* mode. Its output is not a simple `PATH=$mise_shims:$PATH`
+prepend. Instead it:
+
+1. Captures `PATH` at `eval` time into `__MISE_ORIG_PATH`.
+2. Installs a zsh `precmd` hook that calls `mise hook-env`.
+3. On every prompt, `mise hook-env` rebuilds `PATH` by splicing mise
+   tool paths into a *specific slot* computed from a diff against the
+   stored original — not unconditionally at the front.
+
+Empirically, whether the bun/dotnet stanzas prepend *before* or
+*after* `mise activate`, the splice lands mise tools **after** those
+stanzas. That is:
+
+```
+# zshrc with mise activate LAST (as spec 007 originally prescribed):
+[bun, dotnet, dotnet/tools, mise-bat, mise-eza, …, $HOME/bin, …]
+#                           ^^^^^^^^^^^^^^^^^^
+#                           mise spliced here, not at the front
+
+# zshrc with mise activate FIRST (pre-spec-007 ordering):
+[bun, dotnet, dotnet/tools, mise-bat, mise-eza, …, $HOME/bin, …]
+#                           (same splice point)
+```
+
+The ordering of the `mise activate` call does not change the final
+splice position — only the *presence* of prepended entries ahead of
+mise at `eval` time does. So moving `mise activate` to the bottom of
+`dot_zshrc` does not, on its own, eliminate the warning.
+
+**Real fix.** Stop prepending. The bun, dotnet, and pnpm stanzas all
+exist as *fallbacks* for a standalone install alongside the mise-
+managed copy (see spec 003 for bun, spec 002 for pnpm). They should
+append to `PATH`, not prepend:
+
+```sh
+# was: export PATH="$BUN_INSTALL/bin:$PATH"
+      export PATH="$PATH:$BUN_INSTALL/bin"
+# was: export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
+      export PATH="$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools"
+# was: *) export PATH="$PNPM_HOME:$PATH" ;;
+      *) export PATH="$PATH:$PNPM_HOME" ;;
+```
+
+The semantics this buys:
+
+- **bun** — `mise` declares `bun = "latest"` in `mise/config.toml`, so
+  mise's bun is the intended primary. A leftover `~/.bun/bin/bun`
+  still loads as a fallback if mise's shim is missing, which is the
+  only case the guard was ever meant to cover.
+- **pnpm** — mise declares `pnpm = "latest"` too, and `$PNPM_HOME`
+  (`~/.local/share/pnpm`) is the install directory for *global pnpm
+  packages* (`pnpm add -g …`), not the pnpm binary itself. Packages
+  installed there still need to be callable; appending keeps them
+  callable without overtaking mise's pnpm.
+- **dotnet** — `~/.dotnet` is not mise-managed. Appending does not
+  lose anything, because there is effectively no other `dotnet` on
+  PATH to fight with; the block still makes `dotnet` and `dotnet
+  tool` invocations work.
+
+The `mise activate` block still moves to the bottom of `dot_zshrc`
+(the original spec-007 change) as defense-in-depth, but the
+controlling fix is the prepend→append switch.
+
+### Additional acceptance criteria
+
+- `home/dot_zshrc` bun block writes `export PATH="$PATH:$BUN_INSTALL/bin"`.
+- `home/dot_zshrc` dotnet block writes
+  `export PATH="$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools"`.
+- `home/dot_zshrc` pnpm `case` arm writes
+  `export PATH="$PATH:$PNPM_HOME"`.
+- `tests/test_smoke.sh` `[dot_zshrc guards]` section asserts each of
+  the three blocks appends (pattern: `"\$PATH:…"`) rather than
+  prepends (pattern: `"…:\$PATH"`).
+- Running `zsh -i -c 'mise doctor'` on a fresh shell reports **no
+  warnings** (verified by hand — not automated because it depends on
+  which standalone installs the host has).
