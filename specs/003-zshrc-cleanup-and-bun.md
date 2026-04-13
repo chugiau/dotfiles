@@ -38,6 +38,11 @@ fallback for users who installed bun out of band via `curl … | bash`.
 - The duplicate unconditional `PNPM_HOME` block at the bottom of the file
   is removed — the guarded `command -v pnpm` block higher up already
   handles it.
+- The surviving `pnpm` block only prepends `PNPM_HOME` to `$PATH` when
+  `$PNPM_HOME` actually exists. Prepending a phantom `~/.local/share/pnpm`
+  on a machine that has never installed a global pnpm package otherwise
+  trips the same "mise tool paths are not first in PATH" warning that
+  the bun/dotnet exports used to cause.
 - After these changes, `mise doctor` no longer reports the "mise tool
   paths are not first in PATH" warning on a machine with neither bun nor
   dotnet installed locally.
