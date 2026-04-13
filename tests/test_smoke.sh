@@ -362,14 +362,53 @@ if [ "$_pnpm_home_count" = "1" ]; then
 else
     fail "dot_zshrc exports PNPM_HOME $_pnpm_home_count times (expected 1)"
 fi
-# The surviving pnpm block must only prepend PNPM_HOME to $PATH when
-# PNPM_HOME actually exists, otherwise a machine that has never
-# installed a global pnpm package still puts a phantom dir ahead of
-# mise's shim dir and trips `mise doctor`.
+# The surviving pnpm block must only touch $PATH when PNPM_HOME
+# actually exists, otherwise a machine that has never installed a
+# global pnpm package writes a phantom dir into PATH for no gain.
 if grep -q '\[ -d "\$PNPM_HOME" \]' "$_zshrc"; then
-    ok "dot_zshrc guards PNPM_HOME PATH prepend on the directory existing"
+    ok "dot_zshrc guards PNPM_HOME PATH write on the directory existing"
 else
-    fail "dot_zshrc does not guard PNPM_HOME PATH prepend on [ -d \"\$PNPM_HOME\" ]"
+    fail "dot_zshrc does not guard PNPM_HOME PATH write on [ -d \"\$PNPM_HOME\" ]"
+fi
+# Spec 007 amendment: the bun, dotnet, and pnpm blocks must APPEND to
+# PATH (`"$PATH:..."`), not prepend (`"...:$PATH"`). `mise activate`
+# runs in hook-env mode and splices its tool paths into a slot
+# computed from PATH at eval time, which empirically lands *after*
+# any prepended non-mise entries — so the only way to keep mise
+# shims genuinely first is to never prepend these fallback stanzas.
+# Positive pattern uses fixed strings via grep -F to dodge escaping.
+# bun:
+if grep -qF 'export PATH="$PATH:$BUN_INSTALL/bin"' "$_zshrc"; then
+    ok "dot_zshrc appends BUN_INSTALL/bin to PATH (spec 007 amendment)"
+else
+    fail "dot_zshrc does not append BUN_INSTALL/bin (expected: export PATH=\"\$PATH:\$BUN_INSTALL/bin\")"
+fi
+if grep -qF 'export PATH="$BUN_INSTALL/bin:$PATH"' "$_zshrc"; then
+    fail "dot_zshrc still prepends BUN_INSTALL/bin (spec 007 amendment forbids this)"
+else
+    ok "dot_zshrc no longer prepends BUN_INSTALL/bin"
+fi
+# dotnet:
+if grep -qF 'export PATH="$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools"' "$_zshrc"; then
+    ok "dot_zshrc appends DOTNET_ROOT[/tools] to PATH (spec 007 amendment)"
+else
+    fail "dot_zshrc does not append DOTNET_ROOT[/tools] (expected: export PATH=\"\$PATH:\$DOTNET_ROOT:\$DOTNET_ROOT/tools\")"
+fi
+if grep -qF 'export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"' "$_zshrc"; then
+    fail "dot_zshrc still prepends DOTNET_ROOT[/tools] (spec 007 amendment forbids this)"
+else
+    ok "dot_zshrc no longer prepends DOTNET_ROOT[/tools]"
+fi
+# pnpm:
+if grep -qF 'export PATH="$PATH:$PNPM_HOME"' "$_zshrc"; then
+    ok "dot_zshrc appends PNPM_HOME to PATH (spec 007 amendment)"
+else
+    fail "dot_zshrc does not append PNPM_HOME (expected: export PATH=\"\$PATH:\$PNPM_HOME\")"
+fi
+if grep -qF 'export PATH="$PNPM_HOME:$PATH"' "$_zshrc"; then
+    fail "dot_zshrc still prepends PNPM_HOME (spec 007 amendment forbids this)"
+else
+    ok "dot_zshrc no longer prepends PNPM_HOME"
 fi
 echo ""
 
