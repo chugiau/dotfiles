@@ -1,0 +1,47 @@
+# ~/.zshenv — sourced on every zsh invocation (login, non-login,
+# interactive, non-interactive, scripts, `ssh host 'cmd'`).
+#
+# Pure env exports only. No prompts, no completions, no daemon launches,
+# no `command -v` probes for tools that aren't on PATH yet — anything
+# with a side effect belongs in .zprofile (login) or .zshrc (interactive).
+#
+# This is a chezmoi template (spec 009): the `$BROWSER` export is
+# dispatched at `chezmoi apply` time on (.chezmoi.os,
+# .chezmoi.kernel.osrelease) so the per-shell cost stays at zero.
+
+# Repo checkout (managed by chezmoi + mise; used by tooling only).
+export DOTFILES_REPO="$HOME/.dotfiles"
+# Runtime tree laid down by chezmoi — shell modules live here.
+export DOTFILES="$HOME/.config/dotfiles"
+
+export EDITOR="nvim"
+export VISUAL="nvim"
+
+{{- /*
+  Platform-aware $BROWSER.
+    - WSL2        -> wslview   (wslu package, forwards URLs to the
+                                 Windows host default browser)
+    - macOS       -> open      (LaunchServices, honours user default)
+    - Linux (bare) -> xdg-open (freedesktop standard)
+    - other       -> unset     (let downstream tools fall back on
+                                 sensible-browser / www-browser / …;
+                                 setting a non-existent value would
+                                 strictly break URL openers)
+*/ -}}
+{{ if eq .chezmoi.os "darwin" -}}
+export BROWSER="open"
+{{- else if eq .chezmoi.os "linux" -}}
+{{-   if contains "microsoft" (lower .chezmoi.kernel.osrelease) }}
+export BROWSER="wslview"
+{{-   else }}
+export BROWSER="xdg-open"
+{{-   end }}
+{{- end }}
+
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+# Base PATH additions. Every zsh sees these — including scripts and
+# `ssh host 'cmd'` — so ~/.local/bin tools like `mise` are reachable
+# before .zshrc runs `mise activate`.
+export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
+export PATH="$DOTFILES_REPO/shellscripts:$PATH"
