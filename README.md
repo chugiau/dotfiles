@@ -39,7 +39,8 @@ dotfiles edit             # Open the repo in $EDITOR
 | Layer | Managed by | Contents |
 |---|---|---|
 | **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, openssh, curl, wget, build tools |
-| **Dev tools** | [mise](https://mise.jdx.dev/) | neovim, bat, eza, lazygit, glow |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, pnpm, bun |
+| **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
 | **Editor config** | run_once scripts | [NvChad](https://nvchad.com/) starter |
 | **Dotfiles** | [chezmoi](https://www.chezmoi.io/) | zshrc, zprofile, gitconfig, tmux.conf, Claude statusline, ... |
@@ -131,12 +132,18 @@ Splitting the two keeps source and runtime separate: `zshrc` sources `$DOTFILES/
 
 ```toml
 [tools]
-neovim  = "latest"
 bat     = "latest"
 eza     = "latest"
 lazygit = "latest"
 glow    = "latest"
+pnpm    = "latest"
+bun     = "latest"
 ```
+
+> Neovim is **not** managed by mise — it ships from the upstream
+> pre-built tarball via `home/run_onchange_after_15-neovim.sh.tmpl` so
+> the binary lives on `/usr/local/bin/nvim` and is reachable from
+> `sudoedit`, root, and cron without any shell activation.
 
 Add or remove a tool, run `dotfiles install`, and mise picks up the change. The `run_onchange_after_10-mise-install.sh.tmpl` script has the config's SHA256 hash embedded in a comment, so chezmoi re-runs `mise install` automatically when the manifest is edited.
 

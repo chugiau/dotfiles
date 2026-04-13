@@ -9,7 +9,6 @@
 # To pin a version: replace "latest" with an explicit version string.
 
 [tools]
-neovim  = "latest"
 bat     = "latest"
 eza     = "latest"
 lazygit = "latest"
