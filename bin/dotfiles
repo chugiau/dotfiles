@@ -161,7 +161,7 @@ cmd_doctor() {
     echo "Checking installed tools..."
     echo ""
 
-    for cmd in git zsh nvim jq bat eza lazygit glow gpg ssh git-lfs chezmoi mise; do
+    for cmd in git zsh nvim jq bat eza lazygit glow node gpg ssh git-lfs chezmoi mise; do
         if has "$cmd"; then
             log_ok "$cmd ($(command -v "$cmd"))"
             ok=$((ok + 1))
