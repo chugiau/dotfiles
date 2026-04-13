@@ -98,6 +98,7 @@ echo ""
 echo "[home/ source tree]"
 check_exists "home/dot_zshrc"
 check_exists "home/dot_zprofile"
+check_exists "home/dot_zshenv"
 check_exists "home/dot_gitconfig"
 check_exists "home/empty_dot_gitignore"
 check_exists "home/empty_dot_tmux.conf"
@@ -120,6 +121,7 @@ check_exists "home/run_once_after_30-nvchad.sh.tmpl"
 check_exists "home/run_onchange_after_40-git-hooks.sh.tmpl"
 check_exists "home/run_once_after_50-default-shell.sh.tmpl"
 check_exists "home/run_onchange_after_60-claude-statusline.sh.tmpl"
+check_exists "home/run_onchange_after_61-claude-env.sh.tmpl"
 echo ""
 
 # ── POSIX sh parse checks ───────────────────────────────────────────────────
@@ -321,6 +323,176 @@ if grep -q '\[ -d "\$PNPM_HOME" \]' "$_zshrc"; then
     ok "dot_zshrc guards PNPM_HOME PATH prepend on the directory existing"
 else
     fail "dot_zshrc does not guard PNPM_HOME PATH prepend on [ -d \"\$PNPM_HOME\" ]"
+fi
+echo ""
+
+# ── Shell profile split (spec 004): zshenv / zprofile / zshrc by purpose ──
+echo "[dot_zshenv]"
+_zshenv="$SCRIPT_DIR/home/dot_zshenv"
+if [ -f "$_zshenv" ]; then
+    for sym in 'DOTFILES_REPO=' 'DOTFILES=' 'EDITOR=' 'VISUAL=' 'BROWSER=' 'DOTNET_CLI_TELEMETRY_OPTOUT='; do
+        if grep -q "$sym" "$_zshenv"; then
+            ok "dot_zshenv exports $sym"
+        else
+            fail "dot_zshenv does not export $sym"
+        fi
+    done
+    if grep -q '\$HOME/bin:\$HOME/.local/bin' "$_zshenv"; then
+        ok "dot_zshenv prepends \$HOME/bin:\$HOME/.local/bin to PATH"
+    else
+        fail "dot_zshenv does not prepend \$HOME/bin:\$HOME/.local/bin to PATH"
+    fi
+    if grep -q '\$DOTFILES_REPO/shellscripts' "$_zshenv"; then
+        ok "dot_zshenv prepends \$DOTFILES_REPO/shellscripts to PATH"
+    else
+        fail "dot_zshenv does not prepend \$DOTFILES_REPO/shellscripts to PATH"
+    fi
+fi
+echo ""
+
+echo "[dot_zprofile]"
+_zprof="$SCRIPT_DIR/home/dot_zprofile"
+# Hoisted env must be gone from dot_zprofile — it lives in dot_zshenv now.
+for sym in 'DOTFILES_REPO=' 'DOTFILES=' 'EDITOR=' 'VISUAL=' 'BROWSER=' 'DOTNET_CLI_TELEMETRY_OPTOUT='; do
+    if grep -q "$sym" "$_zprof"; then
+        fail "dot_zprofile still exports $sym (should be in dot_zshenv)"
+    else
+        ok "dot_zprofile no longer exports $sym"
+    fi
+done
+# Claude-Code-scoped env must not leak into the login shell.
+if grep -q 'ENABLE_LSP_TOOL' "$_zprof"; then
+    fail "dot_zprofile still exports ENABLE_LSP_TOOL (should be in settings.json.env)"
+else
+    ok "dot_zprofile no longer exports ENABLE_LSP_TOOL"
+fi
+# Fcitx5 must be guarded so machines without it skip the block entirely.
+if grep -q 'command -v fcitx5' "$_zprof"; then
+    ok "dot_zprofile guards fcitx5 on command -v fcitx5"
+else
+    fail "dot_zprofile does not guard fcitx5 on command -v fcitx5"
+fi
+# Daemon must not be relaunched when one is already running.
+if grep -q 'pgrep.*fcitx5' "$_zprof"; then
+    ok "dot_zprofile checks pgrep before launching fcitx5"
+else
+    fail "dot_zprofile does not check pgrep before launching fcitx5"
+fi
+# Typo fix: SDL_IM_MODULE must be fcitx, not icitx.
+if grep -q 'SDL_IM_MODULE=icitx' "$_zprof"; then
+    fail "dot_zprofile still has SDL_IM_MODULE=icitx typo"
+else
+    ok "dot_zprofile no longer has SDL_IM_MODULE=icitx typo"
+fi
+if grep -q 'SDL_IM_MODULE=fcitx' "$_zprof"; then
+    ok "dot_zprofile sets SDL_IM_MODULE=fcitx"
+else
+    fail "dot_zprofile does not set SDL_IM_MODULE=fcitx"
+fi
+# Homebrew shellenv loop moves from dot_zshrc into dot_zprofile.
+if grep -q 'shellenv zsh' "$_zprof"; then
+    ok "dot_zprofile wires brew shellenv (received from dot_zshrc)"
+else
+    fail "dot_zprofile does not wire brew shellenv"
+fi
+if grep -q '^eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv' "$_zprof"; then
+    fail "dot_zprofile has an unguarded linuxbrew shellenv call"
+else
+    ok "dot_zprofile has no unguarded linuxbrew shellenv call"
+fi
+echo ""
+
+echo "[dot_zshrc profile-split leftovers]"
+# Base PATH bootstrap moves to dot_zshenv, must be gone from dot_zshrc.
+if grep -q 'export PATH=\$HOME/bin:\$HOME/.local/bin' "$_zshrc"; then
+    fail "dot_zshrc still has the base \$HOME/bin PATH prepend"
+else
+    ok "dot_zshrc no longer has the base \$HOME/bin PATH prepend"
+fi
+# Brew shellenv moves to dot_zprofile, must be gone from dot_zshrc.
+if grep -q 'shellenv zsh' "$_zshrc"; then
+    fail "dot_zshrc still wires brew shellenv (should be in dot_zprofile)"
+else
+    ok "dot_zshrc no longer wires brew shellenv"
+fi
+# Stock oh-my-zsh commented boilerplate must be trimmed.
+for marker in CASE_SENSITIVE HYPHEN_INSENSITIVE DISABLE_MAGIC_FUNCTIONS \
+              DISABLE_LS_COLORS DISABLE_AUTO_TITLE ENABLE_CORRECTION \
+              COMPLETION_WAITING_DOTS DISABLE_UNTRACKED_FILES_DIRTY \
+              HIST_STAMPS ZSH_CUSTOM ZSH_THEME_RANDOM_CANDIDATES; do
+    if grep -q "$marker" "$_zshrc"; then
+        fail "dot_zshrc still carries stock oh-my-zsh boilerplate: $marker"
+    else
+        ok "dot_zshrc trimmed: $marker"
+    fi
+done
+# The four active oh-my-zsh lines must stay.
+for keep in 'ZSH="\$HOME/.oh-my-zsh"' 'ZSH_THEME=' 'plugins=(' 'source \$ZSH/oh-my-zsh.sh'; do
+    if grep -q "$keep" "$_zshrc"; then
+        ok "dot_zshrc still has active oh-my-zsh line: $keep"
+    else
+        fail "dot_zshrc dropped active oh-my-zsh line: $keep"
+    fi
+done
+echo ""
+
+# ── Claude Code env wireup (spec 004) ──────────────────────────────────────
+echo "[claude env wireup]"
+_envtmpl="$SCRIPT_DIR/home/run_onchange_after_61-claude-env.sh.tmpl"
+if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [ -f "$_envtmpl" ]; then
+    _stage="${TMPDIR:-/tmp}/dotfiles-claude-env.$$"
+    mkdir -p "$_stage"
+    _rendered="$_stage/run.sh"
+    if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_envtmpl" > "$_rendered" 2>/dev/null; then
+        chmod +x "$_rendered"
+
+        # Scenario 1: no settings.json — file is created with env.ENABLE_LSP_TOOL="1".
+        _h1="$_stage/h1"
+        mkdir -p "$_h1/.claude"
+        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 \
+           && [ -f "$_h1/.claude/settings.json" ] \
+           && [ "$(jq -r '.env.ENABLE_LSP_TOOL' "$_h1/.claude/settings.json")" = "1" ]; then
+            ok "creates settings.json with env.ENABLE_LSP_TOOL when missing"
+        else
+            fail "did not create settings.json with env.ENABLE_LSP_TOOL when missing"
+        fi
+
+        # Scenario 2: unrelated env keys and unrelated top-level keys must survive.
+        _h2="$_stage/h2"
+        mkdir -p "$_h2/.claude"
+        printf '%s\n' '{"env":{"FOO":"bar"},"statusLine":{"type":"command","command":"x","padding":0},"autoMemoryEnabled":false}' \
+            > "$_h2/.claude/settings.json"
+        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 \
+           && [ "$(jq -r '.env.FOO'              "$_h2/.claude/settings.json")" = "bar" ] \
+           && [ "$(jq -r '.env.ENABLE_LSP_TOOL'  "$_h2/.claude/settings.json")" = "1" ] \
+           && [ "$(jq -r '.statusLine.type'      "$_h2/.claude/settings.json")" = "command" ] \
+           && [ "$(jq -r '.autoMemoryEnabled'    "$_h2/.claude/settings.json")" = "false" ]; then
+            ok "preserves unrelated env and top-level keys when merging ENABLE_LSP_TOOL"
+        else
+            fail "did not preserve unrelated keys when merging ENABLE_LSP_TOOL"
+        fi
+
+        # Scenario 3: idempotency — second run leaves the file untouched.
+        _h3="$_stage/h3"
+        mkdir -p "$_h3/.claude"
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
+               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        sleep 1
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
+               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        if [ "$_mt1" = "$_mt2" ]; then
+            ok "idempotent: second run does not rewrite settings.json"
+        else
+            fail "idempotent: second run rewrote settings.json (mtime changed)"
+        fi
+    else
+        fail "could not render run_onchange_after_61-claude-env.sh.tmpl"
+    fi
+    rm -rf "$_stage"
+else
+    echo "  chezmoi/jq/template missing — skipping behavioural checks"
 fi
 echo ""
 
