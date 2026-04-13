@@ -1,0 +1,40 @@
+#!/bin/sh
+# Wire ~/.claude/statusline-command.sh into Claude Code via settings.json.
+#
+# chezmoi already drops the script under ~/.claude/, but Claude Code only
+# runs it when settings.json carries a `statusLine` block. This script
+# merges that block into settings.json idempotently using jq, leaving any
+# Claude-Code-managed fields (env, hooks, permissions, …) untouched.
+#
+# Re-runs whenever this script's content changes (run_onchange).
+
+set -eu
+
+log() { printf '\033[0;34m[claude-statusline]\033[0m %s\n' "$*"; }
+
+SETTINGS="$HOME/.claude/settings.json"
+COMMAND_PATH="{{ .chezmoi.homeDir }}/.claude/statusline-command.sh"
+
+if ! command -v jq >/dev/null 2>&1; then
+    log "jq not found — skipping (install jq, then re-run 'chezmoi apply')."
+    exit 0
+fi
+
+mkdir -p "$(dirname "$SETTINGS")"
+[ -f "$SETTINGS" ] || printf '{}\n' > "$SETTINGS"
+
+DESIRED=$(jq -cn --arg cmd "$COMMAND_PATH" \
+    '{type:"command", command:$cmd, padding:0}')
+CURRENT=$(jq -c '.statusLine // null' "$SETTINGS")
+
+if [ "$CURRENT" = "$DESIRED" ]; then
+    exit 0
+fi
+
+tmp=$(mktemp "${SETTINGS}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT INT TERM
+jq --argjson sl "$DESIRED" '.statusLine = $sl' "$SETTINGS" > "$tmp"
+mv "$tmp" "$SETTINGS"
+trap - EXIT INT TERM
+
+log "wired statusLine -> $COMMAND_PATH"
