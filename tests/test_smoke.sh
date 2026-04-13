@@ -116,6 +116,7 @@ echo ""
 echo "[run_once scripts]"
 check_exists "home/run_once_before_10-system-packages.sh.tmpl"
 check_exists "home/run_onchange_after_10-mise-install.sh.tmpl"
+check_exists "home/run_onchange_after_15-neovim.sh.tmpl"
 check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
 check_exists "home/run_onchange_after_40-git-hooks.sh.tmpl"
@@ -221,6 +222,19 @@ if awk '
     ok "mise config declares bun under [tools]"
 else
     fail "mise config does not declare bun under [tools]"
+fi
+# neovim must NOT be declared under mise — it ships from the upstream
+# pre-built tarball now (spec 005) so root / sudoedit / cron can find it
+# on /usr/local/bin instead of through the mise shim dir, which only the
+# interactive zsh rc puts on PATH.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*neovim[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    fail "mise config still declares neovim (should be installed from tarball — spec 005)"
+else
+    ok "mise config no longer declares neovim"
 fi
 echo ""
 
@@ -775,6 +789,81 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     rm -rf "$_stage"
 else
     echo "  chezmoi or jq missing — skipping behavioural checks"
+fi
+echo ""
+
+# ── Neovim system-wide install (spec 005) ─────────────────────────────────
+echo "[neovim system install]"
+_nvtmpl="$SCRIPT_DIR/home/run_onchange_after_15-neovim.sh.tmpl"
+if [ -f "$_nvtmpl" ]; then
+    # Pinned version must be v0.11+ (the >= 0.11 floor doctor enforces).
+    # Match v0.11 / v0.12 / ... / v0.99 / v1.x — anything below v0.11 fails.
+    if grep -qE '^NVIM_VERSION="v(0\.(1[1-9]|[2-9][0-9])|[1-9][0-9]*\.[0-9]+)' "$_nvtmpl"; then
+        ok "pins NVIM_VERSION to v0.11+"
+    else
+        fail "does not pin NVIM_VERSION to v0.11+"
+    fi
+    # Download URL must be the upstream GitHub release path.
+    if grep -q 'github.com/neovim/neovim/releases/download/' "$_nvtmpl"; then
+        ok "downloads from upstream github.com/neovim/neovim/releases/download/"
+    else
+        fail "does not download from upstream GitHub releases"
+    fi
+    # Install path: /opt/nvim-<os>-<arch>
+    if grep -q '/opt/nvim-' "$_nvtmpl"; then
+        ok "installs under /opt/nvim-"
+    else
+        fail "does not install under /opt/nvim-"
+    fi
+    # Symlink into /usr/local/bin/nvim so root / sudoedit / cron can see it.
+    if grep -q '/usr/local/bin/nvim' "$_nvtmpl"; then
+        ok "symlinks /usr/local/bin/nvim"
+    else
+        fail "does not symlink /usr/local/bin/nvim"
+    fi
+    # OS dispatch must cover both Linux and Darwin.
+    if grep -q 'Linux)' "$_nvtmpl" && grep -q 'Darwin)' "$_nvtmpl"; then
+        ok "dispatches on Linux and Darwin"
+    else
+        fail "does not dispatch on both Linux and Darwin"
+    fi
+    # Arch dispatch must cover x86_64 and arm64/aarch64.
+    if grep -qE 'x86_64|amd64' "$_nvtmpl" && grep -qE 'arm64|aarch64' "$_nvtmpl"; then
+        ok "dispatches on x86_64 and arm64/aarch64"
+    else
+        fail "does not dispatch on both x86_64 and arm64"
+    fi
+    # Idempotency: must short-circuit when installed version matches the pin.
+    if grep -q 'NVIM_VERSION' "$_nvtmpl" \
+       && grep -qE 'already installed|skipping' "$_nvtmpl"; then
+        ok "has idempotency short-circuit keyed on installed version"
+    else
+        fail "missing idempotency short-circuit"
+    fi
+    # Best-effort cleanup of the now-retired mise-managed neovim.
+    if grep -q 'mise uninstall neovim' "$_nvtmpl"; then
+        ok "cleans up stale mise-managed neovim"
+    else
+        fail "does not clean up stale mise-managed neovim"
+    fi
+    # Curl invocation must be hardened (-fL with TLS).
+    if grep -qE 'curl -[a-zA-Z]*f[a-zA-Z]*L|curl -fL' "$_nvtmpl"; then
+        ok "curl invocation uses -fL"
+    else
+        fail "curl invocation does not use -fL"
+    fi
+fi
+# README.md must record the new install path and drop neovim from the
+# mise-tools row.
+if grep -qE '^\| \*\*Dev tools\*\*.*neovim' "$SCRIPT_DIR/README.md"; then
+    fail "README.md still lists neovim under the mise Dev tools row"
+else
+    ok "README.md no longer lists neovim under mise"
+fi
+if grep -q '/opt/nvim-' "$SCRIPT_DIR/README.md"; then
+    ok "README.md documents the /opt/nvim- install path"
+else
+    fail "README.md does not document the /opt/nvim- install path"
 fi
 echo ""
 
