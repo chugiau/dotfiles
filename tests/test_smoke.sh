@@ -301,11 +301,9 @@ if grep -q '^eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv' "$_zshrc"; t
 else
     ok "dot_zshrc no longer calls linuxbrew shellenv unconditionally"
 fi
-if grep -q 'shellenv zsh' "$_zshrc"; then
-    ok "dot_zshrc still wires brew shellenv (just guarded)"
-else
-    fail "dot_zshrc no longer wires brew shellenv at all"
-fi
+# NB: the spec-003 "dot_zshrc still wires brew shellenv" assertion retired
+# in spec 004 — brew shellenv moved to dot_zprofile per Homebrew's own
+# install script. The [dot_zprofile] section below asserts the wireup.
 # pnpm: the second, unconditional PNPM_HOME block must be gone. Exactly
 # one `export PNPM_HOME=` survives (inside the guarded `command -v pnpm`
 # block).
