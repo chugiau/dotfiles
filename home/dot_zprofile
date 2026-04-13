@@ -1,28 +1,34 @@
-# Repo checkout (managed by chezmoi + mise; used by tooling only).
-export DOTFILES_REPO="$HOME/.dotfiles"
-# Runtime tree laid down by chezmoi — shell modules live here.
-export DOTFILES="$HOME/.config/dotfiles"
+# ~/.zprofile — sourced once per login shell, before ~/.zshrc.
+#
+# Login-scoped side effects and env whose cost shouldn't be paid per
+# subshell. Pure env exports live in ~/.zshenv; interactive-only setup
+# (prompt, completions, aliases, mise activate) lives in ~/.zshrc.
 
-export EDITOR="nvim"
-export VISUAL="nvim"
+# Input method — only when fcitx5 is actually installed on this box.
+if command -v fcitx5 >/dev/null 2>&1; then
+    export INPUT_METHOD=fcitx
+    export GTK_IM_MODULE=fcitx
+    export QT_IM_MODULE=fcitx
+    export XMODIFIERS=@im=fcitx
+    export SDL_IM_MODULE=fcitx
+    export GLFW_IM_MODULE=ibus
 
-# 自訂 PATH
-export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
-export PATH="$DOTFILES_REPO/shellscripts:$PATH"
+    # Don't relaunch the daemon if one is already running for this user.
+    if ! pgrep -x -u "$USER" fcitx5 >/dev/null 2>&1; then
+        fcitx5 --disable=wayland -d --verbose '*'=0
+    fi
+fi
 
-# 設定輸入法
-export INPUT_METHOD=fcitx
-export GTK_IM_MODULE=fcitx
-export QT_IM_MODULE=fcitx
-export XMODIFIERS=@im=fcitx
-export SDL_IM_MODULE=icitx
-export GLFW_IM_MODULE=ibus
-fcitx5 --disable=wayland -d --verbose '*'=0
-
-export BROWSER=brave.exe
-
-# Claude Code
-export ENABLE_LSP_TOOL=1
-
-export DOTNET_CLI_TELEMETRY_OPTOUT=1
-
+# Homebrew — detect macOS (/opt/homebrew, /usr/local) and Linuxbrew
+# (/home/linuxbrew/.linuxbrew) layouts. Machines without brew skip the
+# eval entirely. Lives in .zprofile per Homebrew's own install script:
+# `brew shellenv` sets login-scoped PATH/MANPATH/INFOPATH/HOMEBREW_*
+# that interactive children inherit, so running it per interactive
+# subshell is wasted work.
+for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbrew/bin/brew; do
+    if [ -x "$_brew" ]; then
+        eval "$("$_brew" shellenv zsh)"
+        break
+    fi
+done
+unset _brew
