@@ -299,7 +299,7 @@ if grep -q '^eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv' "$_zshrc"; t
 else
     ok "dot_zshrc no longer calls linuxbrew shellenv unconditionally"
 fi
-if grep -q 'brew shellenv' "$_zshrc"; then
+if grep -q 'shellenv zsh' "$_zshrc"; then
     ok "dot_zshrc still wires brew shellenv (just guarded)"
 else
     fail "dot_zshrc no longer wires brew shellenv at all"
@@ -312,6 +312,15 @@ if [ "$_pnpm_home_count" = "1" ]; then
     ok "dot_zshrc exports PNPM_HOME exactly once (the guarded block)"
 else
     fail "dot_zshrc exports PNPM_HOME $_pnpm_home_count times (expected 1)"
+fi
+# The surviving pnpm block must only prepend PNPM_HOME to $PATH when
+# PNPM_HOME actually exists, otherwise a machine that has never
+# installed a global pnpm package still puts a phantom dir ahead of
+# mise's shim dir and trips `mise doctor`.
+if grep -q '\[ -d "\$PNPM_HOME" \]' "$_zshrc"; then
+    ok "dot_zshrc guards PNPM_HOME PATH prepend on the directory existing"
+else
+    fail "dot_zshrc does not guard PNPM_HOME PATH prepend on [ -d \"\$PNPM_HOME\" ]"
 fi
 echo ""
 
