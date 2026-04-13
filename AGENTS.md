@@ -2,9 +2,13 @@
 
 ## Rules (override defaults)
 
-1. **TDD** — Write tests first. Red → Green → Refactor.
-2. **Commit after each logical unit** — Don't batch. Commit proactively without waiting to be asked.
-3. **English for all artifacts** — Code, commits, comments, docs. User conversation is the only exception.
+1. **SDD (Spec-Driven Development)** — Write a spec **before** the test. Workflow is **Spec → Test → Code**: the spec defines *what* and *why* (intent, acceptance criteria, out-of-scope, affected files); the test encodes the spec as an executable check; the code makes the test pass. The spec is the source of truth — if behaviour needs to change, edit the spec first, then the test, then the code. Never let test or code drift ahead of the spec.
+   - **Where specs live.** Non-trivial change → `specs/NNN-slug.md` (committed alongside the code change). Trivial fix (typo, one-liner, doc tweak) → spec may live inline in the commit message body under a `Spec:` section. When in doubt, write the file.
+   - **Spec template.** `## Intent` · `## Acceptance criteria` (bulleted, each one testable) · `## Out of scope` · `## Affected files`.
+   - **Interaction with TDD.** SDD does *not* replace TDD — it precedes it. Red-Green-Refactor still applies; the spec just answers "red against what?" before you write the failing test. If a spec and an existing test conflict, the spec wins: update the test.
+2. **TDD** — Write tests first, derived from the spec. Red → Green → Refactor.
+3. **Commit after each logical unit** — Don't batch. Commit proactively without waiting to be asked. A spec edit, a test edit, and an implementation edit are each a logical unit and may be separate commits.
+4. **English for all artifacts** — Code, commits, comments, docs, specs. User conversation is the only exception.
 
 ## Quick Start
 
