@@ -209,6 +209,17 @@ if awk '
 else
     fail "mise config does not declare pnpm under [tools]"
 fi
+# bun must be declared so `bun` ships on every machine via mise shims,
+# removing the need for the ~/.bun PATH-shadow setup in dot_zshrc.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*bun[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares bun under [tools]"
+else
+    fail "mise config does not declare bun under [tools]"
+fi
 echo ""
 
 # ── mise doctor wired into install flow ────────────────────────────────────
@@ -244,6 +255,63 @@ if awk '
     ok "mise activation is guarded by command -v mise"
 else
     fail "mise activation is not guarded by command -v mise"
+fi
+echo ""
+
+echo "[dot_zshrc guards]"
+_zshrc="$SCRIPT_DIR/home/dot_zshrc"
+# bun: block must be guarded on the standalone bun binary existing so a
+# machine without ~/.bun stops prepending a phantom path (which is what
+# trips mise doctor's "tool paths are not first in PATH" warning).
+if grep -q '\[ -x "\$HOME/.bun/bin/bun" \]' "$_zshrc"; then
+    ok "dot_zshrc guards bun setup on \$HOME/.bun/bin/bun"
+else
+    fail "dot_zshrc does not guard bun setup on \$HOME/.bun/bin/bun"
+fi
+if awk '
+    /BUN_INSTALL=/ && $0 !~ /^[[:space:]]/ { bad = 1 }
+    END { exit(bad ? 1 : 0) }
+' "$_zshrc"; then
+    ok "dot_zshrc has no unindented BUN_INSTALL export (i.e. it is inside a guard)"
+else
+    fail "dot_zshrc still exports BUN_INSTALL unconditionally"
+fi
+# dotnet: likewise guarded on the dotnet binary itself existing, not just
+# the ~/.dotnet directory (which can linger as cruft without a real
+# dotnet install).
+if grep -q '\[ -x "\$HOME/.dotnet/dotnet" \]' "$_zshrc"; then
+    ok "dot_zshrc guards dotnet setup on \$HOME/.dotnet/dotnet"
+else
+    fail "dot_zshrc does not guard dotnet setup on \$HOME/.dotnet/dotnet"
+fi
+if awk '
+    /DOTNET_ROOT=/ && $0 !~ /^[[:space:]]/ { bad = 1 }
+    END { exit(bad ? 1 : 0) }
+' "$_zshrc"; then
+    ok "dot_zshrc has no unindented DOTNET_ROOT export"
+else
+    fail "dot_zshrc still exports DOTNET_ROOT unconditionally"
+fi
+# Homebrew: shellenv eval must be guarded so Linux boxes without brew
+# do not print an error on every new shell.
+if grep -q '^eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv' "$_zshrc"; then
+    fail "dot_zshrc still calls linuxbrew shellenv unconditionally"
+else
+    ok "dot_zshrc no longer calls linuxbrew shellenv unconditionally"
+fi
+if grep -q 'brew shellenv' "$_zshrc"; then
+    ok "dot_zshrc still wires brew shellenv (just guarded)"
+else
+    fail "dot_zshrc no longer wires brew shellenv at all"
+fi
+# pnpm: the second, unconditional PNPM_HOME block must be gone. Exactly
+# one `export PNPM_HOME=` survives (inside the guarded `command -v pnpm`
+# block).
+_pnpm_home_count="$(grep -c 'export PNPM_HOME=' "$_zshrc" 2>/dev/null || printf 0)"
+if [ "$_pnpm_home_count" = "1" ]; then
+    ok "dot_zshrc exports PNPM_HOME exactly once (the guarded block)"
+else
+    fail "dot_zshrc exports PNPM_HOME $_pnpm_home_count times (expected 1)"
 fi
 echo ""
 
