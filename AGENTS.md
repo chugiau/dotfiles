@@ -5,3 +5,81 @@
 1. **TDD** — Write tests first. Red → Green → Refactor.
 2. **Commit after each logical unit** — Don't batch. Commit proactively without waiting to be asked.
 3. **English for all artifacts** — Code, commits, comments, docs. User conversation is the only exception.
+
+## Quick Start
+
+```sh
+# First-time setup (zero-dependency POSIX sh bootstrap)
+sh bootstrap.sh
+
+# After setup, use the CLI wrapper
+dotfiles install      # chezmoi apply + mise install
+dotfiles update       # chezmoi update + mise upgrade + omz + p10k + nvim plugins
+dotfiles link         # Re-apply chezmoi (re-create managed files)
+dotfiles check        # Dry-run (chezmoi diff)
+dotfiles doctor       # Health check
+```
+
+## Architecture
+
+- **`bootstrap.sh`** — POSIX sh, zero-dependency bootstrap. Installs curl/git/ca-certs via system PM, drops chezmoi and mise into `~/.local/bin`, clones the repo, writes `~/.config/chezmoi/chezmoi.toml`, runs `chezmoi apply`.
+- **`.chezmoiroot`** — contains `home`. Points chezmoi at `home/` as its source directory.
+- **`home/`** — chezmoi source root, mirrors `$HOME`. File naming follows chezmoi conventions (`dot_`, `executable_`, `private_`, `encrypted_`, `run_once_*`, `run_onchange_*`).
+- **`home/dot_config/mise/config.toml`** — mise tool manifest (neovim, bat, eza, lazygit, glow).
+- **`home/dot_config/dotfiles/`** — runtime tree deployed by chezmoi:
+  - `modules/*.zsh` — shell modules sourced by zshrc (alias, functions, fzf, pkg-quarantine, ssh-agent)
+  - `hooks/pre-commit` — source for the repo's own git pre-commit hook (blocks plaintext env files, age keys, and leaked provider tokens)
+- **`home/run_once_*.sh.tmpl`** — chezmoi setup scripts (system packages, mise install, oh-my-zsh + p10k, NvChad, git hooks, chsh).
+- **`bin/dotfiles`** — POSIX sh CLI wrapper around chezmoi + mise, including `secrets-init` for age setup.
+- **`tests/test_smoke.sh`** — POSIX sh structural tests + chezmoi template render checks.
+
+## Environment variables
+
+| Variable         | Points at                | Purpose                                     |
+|------------------|--------------------------|---------------------------------------------|
+| `$DOTFILES_REPO` | `$HOME/.dotfiles`        | Git checkout                                |
+| `$DOTFILES`      | `$HOME/.config/dotfiles` | chezmoi runtime tree — shell modules, hooks |
+
+zshrc sources `$DOTFILES/modules/*.zsh`, so editing the source in `home/dot_config/dotfiles/modules/` and re-running `dotfiles link` redeploys it.
+
+## chezmoi run_once flow
+
+Ordering uses numeric prefixes:
+
+| Script                                       | Phase        | Trigger                            |
+|----------------------------------------------|--------------|------------------------------------|
+| `run_once_before_10-system-packages.sh.tmpl` | before apply | once                               |
+| `run_onchange_after_10-mise-install.sh.tmpl` | after apply  | whenever mise config hash changes  |
+| `run_once_after_20-ohmyzsh.sh.tmpl`          | after apply  | once                               |
+| `run_once_after_30-nvchad.sh.tmpl`           | after apply  | once                               |
+| `run_onchange_after_40-git-hooks.sh.tmpl`    | after apply  | whenever hook content hash changes |
+| `run_once_after_50-default-shell.sh.tmpl`    | after apply  | once                               |
+
+Go templates dispatch on `.chezmoi.os` (`darwin` / `linux`) and `.chezmoi.osRelease.id` (`ubuntu` / `debian` / `arch` / `fedora` / …).
+
+## Adding a distro
+
+Edit `home/run_once_before_10-system-packages.sh.tmpl` — add a new `install_<distro>()` function and an `else if` branch in the Go-template dispatch block. No other file to touch.
+
+## Adding a tool
+
+1. Edit `home/dot_config/mise/config.toml`, add the tool line.
+2. `dotfiles install` — the content hash in `run_onchange_after_10-mise-install.sh.tmpl` changes, chezmoi re-runs it, mise picks up the new tool.
+3. Optional: add the binary name to the `doctor` loop in `bin/dotfiles`.
+
+## Secrets
+
+Two chezmoi-native routes, no bespoke loader:
+
+- **age-encrypted files.** `dotfiles secrets-init` (idempotent) generates `~/.config/chezmoi/key.txt` and appends the `[age]` block to `chezmoi.toml`. Add files with `chezmoi add --encrypt <path>`; the source file is stored under an `encrypted_` prefix (ciphertext, safe to commit). The `age` package is installed on every distro branch of `run_once_before_10-system-packages.sh.tmpl`.
+- **Bitwarden (or other password managers) via templates.** A `*.env.tmpl` file can call chezmoi's built-in `{{ bitwardenFields "item" "name" }}` (or `onepassword`, `pass`, `keyring`, …) at apply time. Nothing secret lives in the repo — chezmoi refetches on every `apply`. Requires the chosen CLI to be installed and unlocked.
+
+The pre-commit hook at `home/dot_config/dotfiles/hooks/executable_pre-commit` blocks staged plaintext `*.env` (unless the path has `encrypted_` or the file ends `.env.tmpl`), age private keys (`key.txt`, `*.age`), and a bank of provider-token regexes.
+
+## Testing
+
+```sh
+sh tests/test_smoke.sh                  # Structural + template-render smoke tests
+chezmoi apply --dry-run --verbose       # Dry-run: show every change chezmoi would make
+dotfiles check                          # Same as above via the wrapper
+```
