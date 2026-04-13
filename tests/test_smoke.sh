@@ -98,7 +98,7 @@ echo ""
 echo "[home/ source tree]"
 check_exists "home/dot_zshrc"
 check_exists "home/dot_zprofile"
-check_exists "home/dot_zshenv"
+check_exists "home/dot_zshenv.tmpl"
 check_exists "home/dot_gitconfig"
 check_exists "home/empty_dot_gitignore"
 check_exists "home/empty_dot_tmux.conf"
@@ -436,8 +436,10 @@ fi
 echo ""
 
 # ── Shell profile split (spec 004): zshenv / zprofile / zshrc by purpose ──
+# Retargeted to dot_zshenv.tmpl by spec 009 — BROWSER is now dispatched
+# at apply time, so the source lives in a chezmoi template.
 echo "[dot_zshenv]"
-_zshenv="$SCRIPT_DIR/home/dot_zshenv"
+_zshenv="$SCRIPT_DIR/home/dot_zshenv.tmpl"
 if [ -f "$_zshenv" ]; then
     for sym in 'DOTFILES_REPO=' 'DOTFILES=' 'EDITOR=' 'VISUAL=' 'BROWSER=' 'DOTNET_CLI_TELEMETRY_OPTOUT='; do
         if grep -q "$sym" "$_zshenv"; then
@@ -961,6 +963,84 @@ if grep -q '/opt/nvim-' "$SCRIPT_DIR/README.md"; then
     ok "README.md documents the /opt/nvim- install path"
 else
     fail "README.md does not document the /opt/nvim- install path"
+fi
+echo ""
+
+# ── Spec 009: per-platform BROWSER in dot_zshenv.tmpl ───────────────────────
+echo "[spec 009 — browser per platform]"
+_zshenvtmpl="$SCRIPT_DIR/home/dot_zshenv.tmpl"
+# The plain dot_zshenv must be gone — the template replaces it.
+if [ -e "$SCRIPT_DIR/home/dot_zshenv" ]; then
+    fail "home/dot_zshenv still exists (should be renamed to dot_zshenv.tmpl)"
+else
+    ok "home/dot_zshenv no longer exists as a plain file"
+fi
+if [ -f "$_zshenvtmpl" ]; then
+    # brave.exe hard-code must be gone.
+    if grep -q 'BROWSER="brave.exe"' "$_zshenvtmpl"; then
+        fail "dot_zshenv.tmpl still hard-codes BROWSER=brave.exe"
+    else
+        ok "dot_zshenv.tmpl no longer hard-codes brave.exe"
+    fi
+    # All three dispatch outputs must be present as literal strings.
+    for target in 'BROWSER="wslview"' 'BROWSER="open"' 'BROWSER="xdg-open"'; do
+        if grep -qF "$target" "$_zshenvtmpl"; then
+            ok "dot_zshenv.tmpl contains $target"
+        else
+            fail "dot_zshenv.tmpl missing $target"
+        fi
+    done
+    # WSL detection must use `contains "microsoft" (lower ...)` so
+    # kernel osrelease casing does not matter.
+    if grep -q 'contains "microsoft" (lower .chezmoi.kernel.osrelease)' "$_zshenvtmpl"; then
+        ok "dot_zshenv.tmpl guards WSL branch on lower-cased kernel osrelease"
+    else
+        fail "dot_zshenv.tmpl does not guard WSL branch on lower-cased kernel osrelease"
+    fi
+    # Render the template on the current host and check it parses and
+    # emits exactly one BROWSER= line.
+    if command -v chezmoi >/dev/null 2>&1; then
+        _zsrendered="${TMPDIR:-/tmp}/dotfiles-zshenv.$$"
+        if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_zshenvtmpl" > "$_zsrendered" 2>/dev/null; then
+            ok "dot_zshenv.tmpl renders"
+            if sh -n "$_zsrendered" 2>/dev/null; then
+                ok "rendered dot_zshenv parses under sh -n"
+            else
+                fail "rendered dot_zshenv does not parse under sh -n"
+                sh -n "$_zsrendered" >&2 || true
+            fi
+            _brcount="$(grep -c '^export BROWSER=' "$_zsrendered" 2>/dev/null || echo 0)"
+            if [ "$_brcount" = "1" ]; then
+                ok "rendered dot_zshenv emits exactly one BROWSER= line"
+            else
+                fail "rendered dot_zshenv emits $_brcount BROWSER= lines (expected 1 on linux/darwin)"
+                cat "$_zsrendered" >&2 || true
+            fi
+        else
+            fail "dot_zshenv.tmpl failed to render"
+            chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_zshenvtmpl" >&2 || true
+        fi
+        rm -f "$_zsrendered"
+    else
+        echo "  chezmoi not installed — skipping render check"
+    fi
+fi
+echo ""
+
+# ── Spec 009: wslu on Debian WSL ────────────────────────────────────────────
+echo "[spec 009 — wslu on Debian WSL]"
+_syspkgs="$SCRIPT_DIR/home/run_once_before_10-system-packages.sh.tmpl"
+if [ -f "$_syspkgs" ]; then
+    if grep -q 'wslu' "$_syspkgs"; then
+        ok "system-packages references wslu"
+    else
+        fail "system-packages does not reference wslu"
+    fi
+    if grep -q 'grep -qi microsoft /proc/version' "$_syspkgs"; then
+        ok "system-packages guards wslu install on /proc/version microsoft"
+    else
+        fail "system-packages does not guard wslu install on /proc/version microsoft"
+    fi
 fi
 echo ""
 
