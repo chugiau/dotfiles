@@ -223,6 +223,25 @@ if awk '
 else
     fail "mise config does not declare bun under [tools]"
 fi
+# node must be declared so `node`, `npm`, and `npx` ship on every
+# machine via mise shims (spec 006 — pinned to the LTS alias so
+# `dotfiles update` rides every LTS point release automatically).
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*node[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares node under [tools]"
+else
+    fail "mise config does not declare node under [tools]"
+fi
+# bin/dotfiles doctor must check for node so a missing install surfaces
+# directly rather than as a cryptic downstream LSP / hook failure.
+if grep -qE '^[[:space:]]*for cmd in[^;]*[[:space:]]node[[:space:]]' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles doctor loop checks node"
+else
+    fail "bin/dotfiles doctor loop does not check node"
+fi
 # neovim must NOT be declared under mise — it ships from the upstream
 # pre-built tarball now (spec 005) so root / sudoedit / cron can find it
 # on /usr/local/bin instead of through the mise shim dir, which only the
