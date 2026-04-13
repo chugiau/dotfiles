@@ -119,6 +119,7 @@ check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
 check_exists "home/run_onchange_after_40-git-hooks.sh.tmpl"
 check_exists "home/run_once_after_50-default-shell.sh.tmpl"
+check_exists "home/run_onchange_after_60-claude-statusline.sh.tmpl"
 echo ""
 
 # ── POSIX sh parse checks ───────────────────────────────────────────────────
@@ -452,6 +453,69 @@ if grep -q 'config\.symlink' "$_gi"; then
     fail ".gitignore still references the legacy config.symlink/ layout"
 else
     ok ".gitignore no longer references the legacy config.symlink/ layout"
+fi
+echo ""
+
+# ── Claude statusline wireup behaviour ─────────────────────────────────────
+echo "[claude statusline wireup]"
+_tmpl="$SCRIPT_DIR/home/run_onchange_after_60-claude-statusline.sh.tmpl"
+if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    _stage="${TMPDIR:-/tmp}/dotfiles-statusline.$$"
+    mkdir -p "$_stage"
+    _rendered="$_stage/run.sh"
+    if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_tmpl" > "$_rendered" 2>/dev/null; then
+        chmod +x "$_rendered"
+
+        # Scenario 1: no settings.json — should be created with just statusLine.
+        _h1="$_stage/h1"
+        mkdir -p "$_h1/.claude"
+        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 \
+           && [ -f "$_h1/.claude/settings.json" ] \
+           && [ "$(jq -r '.statusLine.type'    "$_h1/.claude/settings.json")" = "command" ] \
+           && [ "$(jq -r '.statusLine.padding' "$_h1/.claude/settings.json")" = "0" ] \
+           && jq -e '.statusLine.command | endswith("/.claude/statusline-command.sh")' \
+                  "$_h1/.claude/settings.json" >/dev/null; then
+            ok "creates settings.json with statusLine when missing"
+        else
+            fail "did not create settings.json with statusLine when missing"
+        fi
+
+        # Scenario 2: existing settings.json with unrelated fields — must be preserved.
+        _h2="$_stage/h2"
+        mkdir -p "$_h2/.claude"
+        printf '%s\n' '{"env":{"FOO":"bar"},"hooks":{"SessionStart":[]},"autoMemoryEnabled":false}' \
+            > "$_h2/.claude/settings.json"
+        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 \
+           && [ "$(jq -r '.env.FOO'           "$_h2/.claude/settings.json")" = "bar" ] \
+           && [ "$(jq -r '.autoMemoryEnabled' "$_h2/.claude/settings.json")" = "false" ] \
+           && jq -e '.hooks.SessionStart | type == "array"' "$_h2/.claude/settings.json" >/dev/null \
+           && [ "$(jq -r '.statusLine.type'   "$_h2/.claude/settings.json")" = "command" ]; then
+            ok "preserves unrelated keys when merging statusLine"
+        else
+            fail "did not preserve unrelated keys when merging statusLine"
+        fi
+
+        # Scenario 3: idempotency — second run leaves the file untouched.
+        _h3="$_stage/h3"
+        mkdir -p "$_h3/.claude"
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
+               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        sleep 1
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
+               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        if [ "$_mt1" = "$_mt2" ]; then
+            ok "idempotent: second run does not rewrite settings.json"
+        else
+            fail "idempotent: second run rewrote settings.json (mtime changed)"
+        fi
+    else
+        fail "could not render run_onchange_after_60-claude-statusline.sh.tmpl"
+    fi
+    rm -rf "$_stage"
+else
+    echo "  chezmoi or jq missing — skipping behavioural checks"
 fi
 echo ""
 
