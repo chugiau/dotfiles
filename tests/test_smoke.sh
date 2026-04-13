@@ -235,6 +235,29 @@ if awk '
 else
     fail "mise config does not declare node under [tools]"
 fi
+# gh (GitHub CLI) must be declared so every machine has `gh` on PATH
+# via mise shims (spec 008 — Claude Code's `gh pr create` / `gh pr
+# view` flows depend on it).
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*gh[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares gh under [tools]"
+else
+    fail "mise config does not declare gh under [tools]"
+fi
+# glab (GitLab CLI) must be declared for the same reason as gh — it
+# rides the gitlab:gitlab-org/cli backend in mise's registry (spec 008).
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*glab[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares glab under [tools]"
+else
+    fail "mise config does not declare glab under [tools]"
+fi
 # bin/dotfiles doctor must check for node so a missing install surfaces
 # directly rather than as a cryptic downstream LSP / hook failure.
 if grep -qE '^[[:space:]]*for cmd in[^;]*[[:space:]]node[[:space:]]' "$SCRIPT_DIR/bin/dotfiles"; then
