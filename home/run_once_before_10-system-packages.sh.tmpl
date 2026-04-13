@@ -41,6 +41,16 @@ install_debian() {
     need_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
         git git-lfs jq openssh-client gnupg zsh curl wget unzip ca-certificates \
         build-essential age
+    # WSL: install wslu so `wslview` is present. Spec 009 backs the
+    # `BROWSER=wslview` export in dot_zshenv.tmpl with this package;
+    # non-WSL Debian/Ubuntu boxes skip it entirely.  `|| true` keeps a
+    # wslu package-manager hiccup from failing the rest of the install
+    # — wslu is a convenience, not a hard dependency.
+    if grep -qi microsoft /proc/version 2>/dev/null; then
+        log "WSL detected — installing wslu for wslview"
+        need_sudo env DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y -qq wslu || true
+    fi
 }
 
 install_arch() {
