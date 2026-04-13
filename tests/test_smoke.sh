@@ -197,6 +197,18 @@ if command -v mise >/dev/null 2>&1; then
 else
     echo "[mise] not installed — skipping config parse"
 fi
+# pnpm must be declared so that `pnpm` and `pnpx` ship on every machine
+# (mise's core pnpm plugin downloads the standalone binary, no Node needed).
+_misecfg="$SCRIPT_DIR/home/dot_config/mise/config.toml"
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*pnpm[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares pnpm under [tools]"
+else
+    fail "mise config does not declare pnpm under [tools]"
+fi
 echo ""
 
 # ── mise doctor wired into install flow ────────────────────────────────────
