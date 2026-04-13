@@ -87,14 +87,18 @@ fi
 # if pnpm is installed, load its environment
 if command -v pnpm >/dev/null 2>&1; then
   export PNPM_HOME="$HOME/.local/share/pnpm"
-  # Only prepend PNPM_HOME to $PATH once pnpm has actually materialised
-  # a global-bin directory there. Prepending a phantom dir otherwise
-  # trips `mise doctor` on a fresh machine that has never installed a
-  # global pnpm package.
+  # $PNPM_HOME is the install dir for global pnpm packages
+  # (`pnpm add -g …`), not the pnpm binary itself — that comes from
+  # mise.  APPEND it to $PATH (never prepend) so mise's own pnpm shim
+  # stays ahead of anything the user has globally installed.  Spec 007
+  # amendment: prepending was what tripped `mise doctor`'s "tool paths
+  # are not first in PATH" warning in the first place.  Still guarded
+  # on the dir existing so a fresh machine that has never run
+  # `pnpm add -g` does not write a phantom entry.
   if [ -d "$PNPM_HOME" ]; then
     case ":$PATH:" in
       *":$PNPM_HOME:"*) ;;
-      *) export PATH="$PNPM_HOME:$PATH" ;;
+      *) export PATH="$PATH:$PNPM_HOME" ;;
     esac
   fi
 
@@ -108,10 +112,13 @@ fi
 # .NET — only when a real dotnet binary lives under ~/.dotnet.
 # Guarded on the binary (not the directory) because `~/.dotnet/corefx`
 # can linger as cruft on a machine that has never actually installed
-# dotnet, and prepending phantom paths here trips `mise doctor`.
+# dotnet, and writing phantom paths here trips `mise doctor`.  APPEND
+# (spec 007 amendment) so mise-managed tools stay in front; `dotnet`
+# and any `dotnet tool install`-provisioned binaries remain reachable
+# as fallback entries.
 if [ -x "$HOME/.dotnet/dotnet" ]; then
   export DOTNET_ROOT="$HOME/.dotnet"
-  export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"
+  export PATH="$PATH:$DOTNET_ROOT:$DOTNET_ROOT/tools"
   export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
   _dotnet_zsh_complete() {
@@ -129,25 +136,31 @@ if [ -x "$HOME/.dotnet/dotnet" ]; then
   compdef _dotnet_zsh_complete dotnet
 fi
 
-# bun — only when the standalone bun binary is installed under ~/.bun.
+# bun — only when a standalone bun binary is installed under ~/.bun.
 # bun is otherwise managed by mise, which exposes it through its shim
-# directory without any PATH work here.
+# directory without any PATH work here.  APPEND (spec 007 amendment)
+# so mise's bun shim stays in front and this block only serves as a
+# fallback for a pre-mise leftover install.
 if [ -x "$HOME/.bun/bin/bun" ]; then
   export BUN_INSTALL="$HOME/.bun"
-  export PATH="$BUN_INSTALL/bin:$PATH"
+  export PATH="$PATH:$BUN_INSTALL/bin"
   [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
 fi
 
-# Activate mise for interactive use (spec 007).  This must run LAST in
-# dot_zshrc — after every `export PATH=...:$PATH` prepend above — so
-# the mise shim directory ends up FIRST in $PATH, ahead of ~/.bun,
-# ~/.dotnet, ~/.local/share/pnpm, and ~/.local/share/fnm.  Hoisting
-# this block any higher re-triggers `mise doctor`'s "mise tool paths
-# are not first in PATH" warning and lets system-installed copies of
-# node / npm / bun / pnpm shadow their mise-managed versions.  Guarded
-# with `command -v mise` so a machine that has not yet bootstrapped
-# mise still loads a working shell; `mise activate` also installs a
-# precmd hook so project-local mise configs take effect on `cd`.
+# Activate mise for interactive use (spec 007).  Sits at the bottom
+# of dot_zshrc as defence in depth against future PATH-prepending
+# stanzas sneaking in above it, but the *controlling* fix for
+# `mise doctor`'s "mise tool paths are not first in PATH" warning is
+# the append switch in the bun / dotnet / pnpm blocks above — see the
+# spec 007 amendment for the full trace.  `mise activate zsh` runs in
+# hook-env mode: it captures PATH at eval time and splices its tool
+# paths into a diff-computed slot, which lands *after* any prepended
+# non-mise entries regardless of where this block sits, so the only
+# way to keep mise shims genuinely first is to never prepend those
+# stanzas in the first place.  Guarded with `command -v mise` so a
+# machine that has not yet bootstrapped mise still loads a working
+# shell; mise also installs a precmd hook so project-local mise
+# configs take effect on `cd`.
 if command -v mise >/dev/null 2>&1; then
   eval "$(mise activate zsh)"
 fi
