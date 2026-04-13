@@ -291,6 +291,22 @@ if awk '
 else
     fail "mise activation is not guarded by command -v mise"
 fi
+# mise activate must run AFTER every `export PATH=...:$PATH` prepend in
+# dot_zshrc (spec 007), otherwise the mise shim dir ends up behind
+# ~/.bun, ~/.dotnet, ~/.local/share/pnpm, and ~/.local/share/fnm —
+# which is exactly the "mise tool paths are not first in PATH" warning
+# that `mise doctor` raises on a fresh shell. Walks the file top-down
+# and records the last-seen prepend and the mise-activate line, then
+# fails if any prepend comes after the activate.
+if awk '
+    /mise activate zsh/        { mise_line = NR }
+    /export PATH=.*:\$PATH/    { last_path = NR }
+    END { exit(mise_line && last_path < mise_line ? 0 : 1) }
+' "$SCRIPT_DIR/home/dot_zshrc"; then
+    ok "mise activate runs after all PATH prepends in dot_zshrc"
+else
+    fail "mise activate runs before a PATH prepend in dot_zshrc (spec 007)"
+fi
 echo ""
 
 echo "[dot_zshrc guards]"
