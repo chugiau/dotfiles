@@ -53,17 +53,6 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-# Activate mise for interactive use.  This hooks into zsh's precmd so
-# project-local mise configs take effect on `cd`, and prepends the
-# mise shim directory to PATH so every tool declared in
-# ~/.config/mise/config.toml becomes callable.  Runs after ~/.local/bin
-# is on PATH so the mise entrypoint is reachable.  Guarded with
-# `command -v mise` so a machine that has not yet bootstrapped mise
-# still loads a working shell.
-if command -v mise >/dev/null 2>&1; then
-  eval "$(mise activate zsh)"
-fi
-
 # oh-my-zsh. Aliases, functions, and tool blocks live below — see
 # ~/.oh-my-zsh/templates/zshrc.zsh-template for the stock options this
 # repo deliberately omits.
@@ -147,6 +136,20 @@ if [ -x "$HOME/.bun/bin/bun" ]; then
   export BUN_INSTALL="$HOME/.bun"
   export PATH="$BUN_INSTALL/bin:$PATH"
   [ -s "$HOME/.bun/_bun" ] && source "$HOME/.bun/_bun"
+fi
+
+# Activate mise for interactive use (spec 007).  This must run LAST in
+# dot_zshrc — after every `export PATH=...:$PATH` prepend above — so
+# the mise shim directory ends up FIRST in $PATH, ahead of ~/.bun,
+# ~/.dotnet, ~/.local/share/pnpm, and ~/.local/share/fnm.  Hoisting
+# this block any higher re-triggers `mise doctor`'s "mise tool paths
+# are not first in PATH" warning and lets system-installed copies of
+# node / npm / bun / pnpm shadow their mise-managed versions.  Guarded
+# with `command -v mise` so a machine that has not yet bootstrapped
+# mise still loads a working shell; `mise activate` also installs a
+# precmd hook so project-local mise configs take effect on `cd`.
+if command -v mise >/dev/null 2>&1; then
+  eval "$(mise activate zsh)"
 fi
 
 # VSCode terminal shell integration
