@@ -1,0 +1,46 @@
+#!/bin/sh
+# Merge Claude-Code-scoped env vars into ~/.claude/settings.json.
+#
+# Claude Code reads env injections from the top-level `env` object in
+# settings.json and applies them to every subprocess it launches. That's
+# the right home for flags that should only affect Claude Code, not the
+# whole login shell — today just ENABLE_LSP_TOOL, which used to leak
+# out of dot_zprofile into every subprocess on the machine.
+#
+# This script idempotently ensures `.env.ENABLE_LSP_TOOL = "1"` without
+# disturbing any other `.env.*` key or any unrelated top-level field
+# (statusLine, hooks, permissions, …). Sister to run_onchange_after_60-
+# claude-statusline.sh.tmpl; kept separate so each wireup has its own
+# content-hash lifecycle.
+#
+# Re-runs whenever this script's content changes (run_onchange).
+
+set -eu
+
+log() { printf '\033[0;34m[claude-env]\033[0m %s\n' "$*"; }
+
+SETTINGS="$HOME/.claude/settings.json"
+KEY="ENABLE_LSP_TOOL"
+VAL="1"
+
+if ! command -v jq >/dev/null 2>&1; then
+    log "jq not found — skipping (install jq, then re-run 'chezmoi apply')."
+    exit 0
+fi
+
+mkdir -p "$(dirname "$SETTINGS")"
+[ -f "$SETTINGS" ] || printf '{}\n' > "$SETTINGS"
+
+CURRENT=$(jq -r --arg k "$KEY" '.env[$k] // ""' "$SETTINGS")
+if [ "$CURRENT" = "$VAL" ]; then
+    exit 0
+fi
+
+tmp=$(mktemp "${SETTINGS}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT INT TERM
+jq --arg k "$KEY" --arg v "$VAL" '.env = ((.env // {}) + {($k): $v})' \
+    "$SETTINGS" > "$tmp"
+mv "$tmp" "$SETTINGS"
+trap - EXIT INT TERM
+
+log "wired env.$KEY=$VAL"
