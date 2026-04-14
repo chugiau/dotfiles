@@ -258,6 +258,18 @@ if awk '
 else
     fail "mise config does not declare glab under [tools]"
 fi
+# codex (OpenAI Codex CLI) must be declared so every machine ships the
+# terminal coding agent alongside Claude Code via mise shims (spec 011 —
+# aqua:openai/codex backend pulls the static release binary).
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*codex[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares codex under [tools]"
+else
+    fail "mise config does not declare codex under [tools]"
+fi
 # bin/dotfiles doctor must check for node so a missing install surfaces
 # directly rather than as a cryptic downstream LSP / hook failure.
 if grep -qE '^[[:space:]]*for cmd in[^;]*[[:space:]]node[[:space:]]' "$SCRIPT_DIR/bin/dotfiles"; then
