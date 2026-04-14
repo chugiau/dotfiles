@@ -40,7 +40,7 @@ install_debian() {
     need_sudo apt-get update -qq
     need_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
         git git-lfs jq openssh-client gnupg zsh curl wget unzip ca-certificates \
-        build-essential age
+        build-essential age bubblewrap socat
     # WSL: install wslu so `wslview` is present. Spec 009 backs the
     # `BROWSER=wslview` export in dot_zshenv.tmpl with this package;
     # non-WSL Debian/Ubuntu boxes skip it entirely.  `|| true` keeps a
@@ -56,13 +56,15 @@ install_debian() {
 install_arch() {
     log "pacman -Syu --needed"
     need_sudo pacman -Sy --noconfirm --needed \
-        git git-lfs jq openssh gnupg zsh curl wget unzip base-devel age
+        git git-lfs jq openssh gnupg zsh curl wget unzip base-devel age \
+        bubblewrap socat
 }
 
 install_fedora() {
     log "dnf install system packages"
     need_sudo dnf install -y \
-        git git-lfs jq openssh-clients gnupg2 zsh curl wget unzip age
+        git git-lfs jq openssh-clients gnupg2 zsh curl wget unzip age \
+        bubblewrap socat
     need_sudo dnf groupinstall -y "Development Tools" || true
 }
 
