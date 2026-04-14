@@ -39,7 +39,7 @@ dotfiles edit             # Open the repo in $EDITOR
 | Layer | Managed by | Contents |
 |---|---|---|
 | **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, openssh, curl, wget, build tools |
-| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, node, pnpm, bun, gh, glab |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, node, pnpm, bun, gh, glab, codex |
 | **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
 | **Editor config** | run_once scripts | [NvChad](https://nvchad.com/) starter |
@@ -141,6 +141,7 @@ pnpm    = "latest"
 bun     = "latest"
 gh      = "latest"
 glab    = "latest"
+codex   = "latest"
 ```
 
 > Neovim is **not** managed by mise — it ships from the upstream
