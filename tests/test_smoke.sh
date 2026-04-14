@@ -1044,6 +1044,49 @@ if [ -f "$_syspkgs" ]; then
 fi
 echo ""
 
+# ── Spec 010: Claude Code sandbox packages ─────────────────────────────────
+# Every Linux distro branch must install bubblewrap + socat so Claude
+# Code's /sandbox works without a manual apt/pacman/dnf step. macOS uses
+# built-in Seatbelt, so install_darwin must NOT list either package.
+echo "[spec 010 — claude sandbox packages]"
+_syspkgs="$SCRIPT_DIR/home/run_once_before_10-system-packages.sh.tmpl"
+if [ -f "$_syspkgs" ]; then
+    for fn in install_debian install_arch install_fedora; do
+        for pkg in bubblewrap socat; do
+            if awk -v fn="$fn" -v pkg="$pkg" '
+                $0 ~ "^" fn "\\(\\) *\\{" { in_fn=1; next }
+                in_fn && /^\}/            { in_fn=0 }
+                in_fn {
+                    pat = "(^|[[:space:]])" pkg "([[:space:]]|$)"
+                    if ($0 ~ pat) found=1
+                }
+                END { exit(found ? 0 : 1) }
+            ' "$_syspkgs"; then
+                ok "$fn installs $pkg"
+            else
+                fail "$fn does not install $pkg"
+            fi
+        done
+    done
+    # install_darwin must stay untouched — Seatbelt is built in.
+    for pkg in bubblewrap socat; do
+        if awk -v pkg="$pkg" '
+            /^install_darwin\(\) *\{/ { in_fn=1; next }
+            in_fn && /^\}/            { in_fn=0 }
+            in_fn {
+                pat = "(^|[[:space:]])" pkg "([[:space:]]|$)"
+                if ($0 ~ pat) found=1
+            }
+            END { exit(found ? 0 : 1) }
+        ' "$_syspkgs"; then
+            fail "install_darwin references $pkg (macOS uses Seatbelt — should be absent)"
+        else
+            ok "install_darwin does not reference $pkg"
+        fi
+    done
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
