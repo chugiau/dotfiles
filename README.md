@@ -39,7 +39,7 @@ dotfiles edit             # Open the repo in $EDITOR
 | Layer | Managed by | Contents |
 |---|---|---|
 | **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, openssh, curl, wget, build tools |
-| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, node, pnpm, bun, gh, glab, codex |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, node, pnpm, bun, gh, glab, codex, direnv |
 | **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
 | **Editor config** | run_once scripts | [NvChad](https://nvchad.com/) starter |
@@ -142,7 +142,14 @@ bun     = "latest"
 gh      = "latest"
 glab    = "latest"
 codex   = "latest"
+direnv  = "latest"
 ```
+
+> `direnv` is wired into zsh via a hook in `home/dot_zshrc` that runs
+> after `mise activate`, and a global `home/dot_config/direnv/direnv.toml`
+> sets `[global] load_dotenv = true` so bare `.env` files activate
+> alongside `.envrc`. `direnv allow` is required per directory on first
+> entry — that is direnv's security model, not a bug.
 
 > Neovim is **not** managed by mise — it ships from the upstream
 > pre-built tarball via `home/run_onchange_after_15-neovim.sh.tmpl` so
@@ -196,6 +203,7 @@ Most things are fully automated. These require one-time manual action:
 | Task | Command | Why manual |
 |---|---|---|
 | Configure powerlevel10k | `p10k configure` | Interactive TUI wizard |
+| Approve direnv in a project | `direnv allow` | Required once per directory on first entry (security model) |
 | Initialise age encryption | `dotfiles secrets-init` | Generates `~/.config/chezmoi/key.txt` and wires chezmoi.toml |
 | Add an encrypted secret file | `chezmoi add --encrypt ~/.config/dotfiles/credentials.env` | Per-user content |
 | Log into Bitwarden (for `bw`-driven templates) | `bw login && bw unlock` | Requires interactive master password |

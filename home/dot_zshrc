@@ -165,6 +165,17 @@ if command -v mise >/dev/null 2>&1; then
   eval "$(mise activate zsh)"
 fi
 
+# direnv — auto-load project env on `cd`, auto-unload on leave (spec 012).
+# Must come AFTER `mise activate zsh` so direnv inherits the mise-shimmed
+# PATH (including the mise-managed `direnv` binary itself).  The global
+# ~/.config/direnv/direnv.toml sets `load_dotenv = true`, so both bare
+# `.env` files and `.envrc` files activate; `direnv allow` is still
+# required per directory — that is direnv's security model.  Guarded on
+# `command -v direnv` so a machine pre-`dotfiles install` still loads.
+if command -v direnv >/dev/null 2>&1; then
+  eval "$(direnv hook zsh)"
+fi
+
 # VSCode terminal shell integration
 [[ "$TERM_PROGRAM" == "vscode" ]] && . "$(code --locate-shell-integration-path zsh)"
 

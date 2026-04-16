@@ -1,0 +1,15 @@
+# direnv global config — see https://direnv.net/man/direnv.toml.1.html
+#
+# load_dotenv = true makes direnv activate on a bare `.env` file, in
+# addition to the conventional `.envrc`.  When both are present the
+# `.envrc` wins.
+#
+# `direnv allow` is still required on first entry into a directory —
+# that approval gate is direnv's security model and is intentionally
+# not circumvented here.
+#
+# Needs direnv >= 2.31; the version shipped via mise (aqua:direnv/direnv)
+# is always current enough.
+
+[global]
+load_dotenv = true
