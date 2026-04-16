@@ -103,6 +103,7 @@ check_exists "home/dot_gitconfig"
 check_exists "home/empty_dot_gitignore"
 check_exists "home/empty_dot_tmux.conf"
 check_exists "home/dot_config/mise/config.toml"
+check_exists "home/dot_config/direnv/direnv.toml"
 check_exists "home/dot_config/dotfiles/modules/empty_alias.zsh"
 check_exists "home/dot_config/dotfiles/modules/empty_functions.zsh"
 check_exists "home/dot_config/dotfiles/modules/empty_fzf.zsh"
@@ -269,6 +270,19 @@ if awk '
     ok "mise config declares codex under [tools]"
 else
     fail "mise config does not declare codex under [tools]"
+fi
+# direnv must be declared so every machine ships the per-directory env
+# loader alongside the rest of the toolchain (spec 012 — aqua:direnv/direnv
+# backend pulls the static release binary).  The dot_zshrc hook + the
+# global direnv.toml in home/dot_config/direnv/ are asserted lower down.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*direnv[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares direnv under [tools]"
+else
+    fail "mise config does not declare direnv under [tools]"
 fi
 # bin/dotfiles doctor must check for node so a missing install surfaces
 # directly rather than as a cryptic downstream LSP / hook failure.
@@ -1096,6 +1110,62 @@ if [ -f "$_syspkgs" ]; then
             ok "install_darwin does not reference $pkg"
         fi
     done
+fi
+echo ""
+
+# ── Spec 012: direnv integration ───────────────────────────────────────────
+# direnv must ship as a mise-managed tool (checked above), carry a global
+# config with load_dotenv = true so bare `.env` files activate alongside
+# `.envrc`, and be wired into dot_zshrc AFTER `mise activate zsh` so the
+# direnv hook sees the mise-shimmed direnv binary on PATH at eval time.
+echo "[spec 012 — direnv integration]"
+_direnvcfg="$SCRIPT_DIR/home/dot_config/direnv/direnv.toml"
+if [ -f "$_direnvcfg" ]; then
+    ok "home/dot_config/direnv/direnv.toml exists"
+    # Must declare [global] load_dotenv = true so `.env` files activate
+    # without requiring an accompanying `.envrc`.  Scan line-by-line,
+    # tracking the current section header, so a stray `load_dotenv = true`
+    # outside `[global]` does not satisfy the check.
+    if awk '
+        /^\[/                                       { section = $0 }
+        section == "[global]" && /^[[:space:]]*load_dotenv[[:space:]]*=[[:space:]]*true/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$_direnvcfg"; then
+        ok "direnv.toml sets [global] load_dotenv = true"
+    else
+        fail "direnv.toml does not set [global] load_dotenv = true"
+    fi
+else
+    fail "home/dot_config/direnv/direnv.toml missing"
+fi
+# dot_zshrc must eval the zsh hook so direnv runs on every cd.
+if grep -q 'direnv hook zsh' "$_zshrc"; then
+    ok "dot_zshrc evals direnv hook zsh"
+else
+    fail "dot_zshrc does not eval direnv hook zsh"
+fi
+# The eval must be guarded on `command -v direnv` so a machine without
+# direnv installed (pre-`dotfiles install`) still loads a working shell.
+if awk '
+    /direnv hook zsh/ && prev ~ /command -v direnv/ { found=1 }
+    { prev = $0 }
+    END { exit(found ? 0 : 1) }
+' "$_zshrc"; then
+    ok "direnv hook is guarded by command -v direnv"
+else
+    fail "direnv hook is not guarded by command -v direnv"
+fi
+# Ordering: direnv hook must come AFTER `mise activate zsh` so direnv
+# inherits mise's PATH (including the mise-shimmed direnv binary itself).
+# Same NR-comparison pattern as the spec-007 PATH-prepend check above.
+if awk '
+    /mise activate zsh/    { mise_line = NR }
+    /direnv hook zsh/      { direnv_line = NR }
+    END { exit(mise_line && direnv_line && direnv_line > mise_line ? 0 : 1) }
+' "$_zshrc"; then
+    ok "direnv hook runs after mise activate in dot_zshrc"
+else
+    fail "direnv hook does not run after mise activate in dot_zshrc (spec 012)"
 fi
 echo ""
 
