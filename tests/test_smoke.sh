@@ -1169,6 +1169,64 @@ else
 fi
 echo ""
 
+# ── Claude Code statusline long-name truncation (spec 013) ─────────────────
+echo "[claude statusline (spec 013)]"
+_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
+if [ ! -f "$_sl" ]; then
+    fail "missing tracked statusline script"
+else
+    # Structural: truncate_name helper is defined
+    if grep -q '^truncate_name()' "$_sl"; then
+        ok "truncate_name helper is defined"
+    else
+        fail "truncate_name helper is missing"
+    fi
+
+    # Structural: 🪵 worktree segment applies truncate_name with 28 cap
+    if grep -q 'truncate_name "\${git_worktree}" 28' "$_sl"; then
+        ok "worktree slug is truncated to 28 chars"
+    else
+        fail "worktree slug is not truncated to 28 chars"
+    fi
+
+    # Structural: 🌿 branch segment (non-worktree path) truncates to 30 chars
+    if grep -q 'truncate_name "\${git_branch}" 30' "$_sl"; then
+        ok "branch name is truncated to 30 chars outside a worktree"
+    else
+        fail "branch name is not truncated to 30 chars outside a worktree"
+    fi
+
+    # Structural: worktree-branch dedup suppresses redundant branch display
+    if grep -q '"\${git_branch}" == "worktree-\${git_worktree}"' "$_sl" \
+        && grep -q 'branch_redundant=1' "$_sl"; then
+        ok "branch display is suppressed when it encodes the worktree slug"
+    else
+        fail "branch display is not suppressed for worktree-encoded branches"
+    fi
+
+    # Behavioural: run truncate_name under bash with below/above-threshold inputs
+    if command -v bash >/dev/null 2>&1; then
+        _fn=$(awk '/^truncate_name\(\) \{/,/^}/' "$_sl")
+        _below=$(bash -c "$_fn"'
+            truncate_name "short" 10' 2>/dev/null)
+        _above=$(bash -c "$_fn"'
+            truncate_name "abcdefghijklmnop" 5' 2>/dev/null)
+        if [ "$_below" = "short" ]; then
+            ok "truncate_name preserves name below threshold"
+        else
+            fail "truncate_name mangled name below threshold: '$_below'"
+        fi
+        if [ "$_above" = "abcde…" ]; then
+            ok "truncate_name truncates + appends … above threshold"
+        else
+            fail "truncate_name did not truncate correctly: '$_above'"
+        fi
+    else
+        ok "skipped behavioural truncate_name check (bash not available)"
+    fi
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
