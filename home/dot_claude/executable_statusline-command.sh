@@ -380,10 +380,39 @@ cache_pct_color() {
 }
 
 # ---------------------------------------------------------------------------
+# truncate_name <name> <max_len>
+# ---------------------------------------------------------------------------
+# Truncates a string to max_len characters, appending "…" if truncated.
+#
+# Arguments:
+#   $1 - string to truncate
+#   $2 - maximum visible length (default: 30)
+#######################################
+truncate_name() {
+  local name="${1}"
+  local max="${2:-30}"
+  if [[ "${#name}" -gt "${max}" ]]; then
+    printf "%s" "${name:0:${max}}…"
+  else
+    printf "%s" "${name}"
+  fi
+}
+
+# ---------------------------------------------------------------------------
 # build_line1
 # ---------------------------------------------------------------------------
 # Assembles and prints line 1:
 #   model | folder [worktree] [git branch] [git status] | tokens [sub-agents]
+#
+# Worktree dedup logic:
+#   When git_worktree is set, the folder name (basename of project_dir) is
+#   typically identical to the worktree slug — showing both is redundant.
+#   Instead we show only 📁 <project-root-basename> (the parent dir of the
+#   worktree) when available, and skip the folder segment entirely when that
+#   is also redundant.  Long worktree and branch names are truncated.
+#   If git_branch contains git_worktree as a substring (e.g. the branch is
+#   "worktree-<slug>"), the branch display is suppressed to avoid tripling
+#   the same slug on one line.
 #######################################
 build_line1() {
   local total_tokens="${1}"
@@ -396,14 +425,46 @@ build_line1() {
   line="${line} | "
 
   # Folder + git worktree + git branch
-  local folder_name
-  folder_name=$(basename "${project_dir}")
-  line="${line}📁 ${YELLOW}${folder_name}${RESET}"
   if [[ -n "${git_worktree}" ]]; then
-    line="${line} 🪵 ${CYAN}${git_worktree}${RESET}"
-  fi
-  if [[ -n "${git_branch}" ]]; then
-    line="${line} 🌿 git:(${MAGENTA}${git_branch}${RESET})"
+    # In a worktree session: show the project root name (parent of the
+    # worktree dir) so the reader knows which repo this belongs to, then
+    # show a truncated worktree label.  Skip the branch when it redundantly
+    # encodes the same worktree slug.
+    local project_root_name wt_short branch_redundant
+    project_root_name=$(basename "$(dirname "${project_dir}")")
+    # If dirname is "." or "/" the fallback is the project_dir basename itself
+    [[ -z "${project_root_name}" || "${project_root_name}" == "." ]] \
+      && project_root_name=$(basename "${project_dir}")
+    wt_short=$(truncate_name "${git_worktree}" 28)
+
+    line="${line}📁 ${YELLOW}${project_root_name}${RESET}"
+    line="${line} 🪵 ${CYAN}${wt_short}${RESET}"
+
+    # Suppress branch when it is just "worktree-<slug>" or equals the slug
+    branch_redundant=0
+    if [[ -n "${git_branch}" ]]; then
+      if [[ "${git_branch}" == "${git_worktree}" ]] \
+         || [[ "${git_branch}" == "worktree-${git_worktree}" ]] \
+         || [[ "${git_branch}" == *"${git_worktree}"* ]]; then
+        branch_redundant=1
+      fi
+    fi
+
+    if [[ "${branch_redundant}" -eq 0 ]] && [[ -n "${git_branch}" ]]; then
+      local branch_short
+      branch_short=$(truncate_name "${git_branch}" 28)
+      line="${line} 🌿 git:(${MAGENTA}${branch_short}${RESET})"
+    fi
+  else
+    # Normal (non-worktree) session
+    local folder_name
+    folder_name=$(basename "${project_dir}")
+    line="${line}📁 ${YELLOW}${folder_name}${RESET}"
+    if [[ -n "${git_branch}" ]]; then
+      local branch_short
+      branch_short=$(truncate_name "${git_branch}" 30)
+      line="${line} 🌿 git:(${MAGENTA}${branch_short}${RESET})"
+    fi
   fi
 
   # Git status counters
