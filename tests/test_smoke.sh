@@ -1227,6 +1227,42 @@ else
 fi
 echo ""
 
+# ── Claude Code statusline ahead/behind counters (spec 014) ───────────────
+echo "[claude statusline (spec 014)]"
+_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
+if [ ! -f "$_sl" ]; then
+    fail "missing tracked statusline script (spec 014 checks skipped)"
+else
+    # Structural: collect_git_info must initialise git_ahead and git_behind
+    if grep -q 'git_ahead=0' "$_sl" && grep -q 'git_behind=0' "$_sl"; then
+        ok "collect_git_info initialises git_ahead and git_behind"
+    else
+        fail "collect_git_info does not initialise git_ahead / git_behind"
+    fi
+
+    # Structural: ahead/behind populated via rev-list or equivalent
+    if grep -qE 'rev-list|@\{u\}|@\{upstream\}' "$_sl"; then
+        ok "collect_git_info uses git rev-list / upstream ref for ahead/behind"
+    else
+        fail "collect_git_info does not use git rev-list / upstream ref"
+    fi
+
+    # Structural: ↑ (ahead) indicator rendered in build_line1
+    if grep -q '↑' "$_sl"; then
+        ok "build_line1 contains ↑ (ahead) indicator"
+    else
+        fail "build_line1 missing ↑ (ahead) indicator"
+    fi
+
+    # Structural: ↓ (behind) indicator rendered in build_line1
+    if grep -q '↓' "$_sl"; then
+        ok "build_line1 contains ↓ (behind) indicator"
+    else
+        fail "build_line1 missing ↓ (behind) indicator"
+    fi
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
