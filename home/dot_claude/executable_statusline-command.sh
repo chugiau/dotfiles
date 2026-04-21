@@ -129,7 +129,11 @@ extract_fields() {
 # collect_git_info <directory>
 # ---------------------------------------------------------------------------
 # Populates git_branch, git_staged, git_modified, git_untracked,
-# git_added, and git_deleted for the given working directory.
+# git_added, git_deleted, git_ahead, and git_behind for the given
+# working directory.
+#
+# git_ahead  — local commits not yet pushed to the tracking remote
+# git_behind — remote commits not yet pulled into the local branch
 #
 # Arguments:
 #   $1 - absolute path to the working directory
@@ -143,6 +147,8 @@ collect_git_info() {
   git_untracked=0
   git_added=0
   git_deleted=0
+  git_ahead=0
+  git_behind=0
 
   if [[ -z "${dir}" ]] || ! command -v git >/dev/null 2>&1; then
     return
@@ -178,6 +184,18 @@ collect_git_info() {
       git -C "${dir}" --no-optional-locks diff --numstat 2>/dev/null
       git -C "${dir}" --no-optional-locks diff --cached --numstat 2>/dev/null
     )
+  fi
+
+  # Ahead/behind vs upstream tracking branch (no network call — uses last
+  # known remote-tracking ref; stays fast even in large repos).
+  local ab_raw ab_ahead ab_behind
+  ab_raw=$(git -C "${dir}" --no-optional-locks rev-list \
+    --left-right --count HEAD...@{u} 2>/dev/null)
+  if [[ -n "${ab_raw}" ]]; then
+    ab_ahead="${ab_raw%%$'\t'*}"
+    ab_behind="${ab_raw##*$'\t'}"
+    [[ "${ab_ahead}"  =~ ^[0-9]+$ ]] && git_ahead="${ab_ahead}"
+    [[ "${ab_behind}" =~ ^[0-9]+$ ]] && git_behind="${ab_behind}"
   fi
 }
 
@@ -466,6 +484,10 @@ build_line1() {
       line="${line} 🌿 git:(${MAGENTA}${branch_short}${RESET})"
     fi
   fi
+
+  # Ahead/behind upstream counters (↑ ahead in green, ↓ behind in red)
+  [[ "${git_ahead}"  -gt 0 ]] && line="${line} ${GREEN}↑${git_ahead}${RESET}"
+  [[ "${git_behind}" -gt 0 ]] && line="${line} ${RED}↓${git_behind}${RESET}"
 
   # Git status counters
   local git_status_str=""
