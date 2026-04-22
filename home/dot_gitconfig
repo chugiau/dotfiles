@@ -17,3 +17,5 @@
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
+[alias]
+	clear-gone = "!f() { git fetch --all --prune && git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads | awk '$2 == \"[gone]\" { print $1 }' | while IFS= read -r b; do git branch -D \"$b\"; done; }; f"
