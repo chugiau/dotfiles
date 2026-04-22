@@ -284,6 +284,18 @@ if awk '
 else
     fail "mise config does not declare direnv under [tools]"
 fi
+# ripgrep must be declared so every machine ships a current `rg` via mise
+# shims (spec 015 — aqua:BurntSushi/ripgrep backend pulls the upstream
+# static release binary, shadowing any distro-packaged ripgrep).
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*ripgrep[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares ripgrep under [tools]"
+else
+    fail "mise config does not declare ripgrep under [tools]"
+fi
 # bin/dotfiles doctor must check for node so a missing install surfaces
 # directly rather than as a cryptic downstream LSP / hook failure.
 if grep -qE '^[[:space:]]*for cmd in[^;]*[[:space:]]node[[:space:]]' "$SCRIPT_DIR/bin/dotfiles"; then
