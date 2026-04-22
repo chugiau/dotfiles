@@ -1275,6 +1275,46 @@ else
 fi
 echo ""
 
+# ── Spec 016: git clear-gone alias ─────────────────────────────────────────
+# `git clear-gone` should be a one-shot post-PR cleanup: refresh remote
+# tracking refs with `git fetch --all --prune`, list local branches whose
+# upstream is `[gone]` via `git for-each-ref`, then force-delete each one
+# with `git branch -D` in a portable shell loop (no xargs -r).
+echo "[spec 016 — git clear-gone alias]"
+_gitcfg="$SCRIPT_DIR/home/dot_gitconfig"
+if [ -f "$_gitcfg" ]; then
+    if awk '
+        /^\[/                                                         { section = $0 }
+        section == "[alias]" && /^[[:space:]]*clear-gone[[:space:]]*=/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$_gitcfg"; then
+        ok "dot_gitconfig declares clear-gone under [alias]"
+    else
+        fail "dot_gitconfig does not declare clear-gone under [alias]"
+    fi
+    if grep -q 'fetch --all --prune' "$_gitcfg"; then
+        ok "clear-gone refreshes remotes via git fetch --all --prune"
+    else
+        fail "clear-gone does not run git fetch --all --prune"
+    fi
+    if grep -q 'for-each-ref' "$_gitcfg"; then
+        ok "clear-gone enumerates branches via git for-each-ref"
+    else
+        fail "clear-gone does not use git for-each-ref"
+    fi
+    if grep -qF '[gone]' "$_gitcfg"; then
+        ok "clear-gone filters on the [gone] upstream-track marker"
+    else
+        fail "clear-gone does not filter on [gone]"
+    fi
+    if grep -q 'git branch -D' "$_gitcfg"; then
+        ok "clear-gone force-deletes via git branch -D"
+    else
+        fail "clear-gone does not force-delete via git branch -D"
+    fi
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
