@@ -90,6 +90,35 @@ file_mtime() {
 }
 
 # ---------------------------------------------------------------------------
+# Helper: file_btime
+# ---------------------------------------------------------------------------
+# Returns the creation (birth) time of a file as Unix epoch seconds.
+# On Linux uses `stat -c %W`; on macOS/BSD uses `stat -f %B`.
+# Some Linux filesystems report 0 for birth time — in that case, falls back
+# to the first JSONL line's `timestamp` field (Claude Code transcripts).
+# Final fallback is the file's mtime.
+#
+# Arguments:
+#   $1 - absolute path to the file
+#
+# Output (stdout): epoch integer, or empty string on failure.
+#######################################
+file_btime() {
+  local path="${1}" b ts
+  b=$(stat -c %W "${path}" 2>/dev/null || stat -f %B "${path}" 2>/dev/null)
+  if [[ -z "${b}" || "${b}" == "0" || "${b}" == "-" ]]; then
+    ts=$(head -n 1 "${path}" 2>/dev/null | jq -r '.timestamp // empty' 2>/dev/null)
+    if [[ -n "${ts}" ]]; then
+      b=$(date -d "${ts}" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "${ts%.*}" +%s 2>/dev/null)
+    fi
+  fi
+  if [[ -z "${b}" || "${b}" == "0" ]]; then
+    b=$(file_mtime "${path}")
+  fi
+  printf "%s" "${b}"
+}
+
+# ---------------------------------------------------------------------------
 # extract_fields <input_json>
 # ---------------------------------------------------------------------------
 # Parses the JSON payload into global variables.
@@ -204,7 +233,12 @@ collect_git_info() {
 # compute_session_mins <transcript_path>
 # ---------------------------------------------------------------------------
 # Outputs the number of whole minutes elapsed since the transcript file was
-# last modified, or 0 if the file is absent or its mtime cannot be read.
+# first created (i.e. since the session started), or 0 if the file is absent
+# or its birth time cannot be read.
+#
+# Uses birth time rather than mtime because Claude Code appends to the
+# transcript on every message, so mtime is effectively "now" and would
+# always yield 0 minutes.
 #
 # Arguments:
 #   $1 - path to the transcript file
@@ -214,11 +248,12 @@ compute_session_mins() {
   local session_mins=0
 
   if [[ -n "${path}" ]] && [[ -f "${path}" ]]; then
-    local file_mtime_val now elapsed
-    file_mtime_val=$(file_mtime "${path}")
+    local file_btime_val now elapsed
+    file_btime_val=$(file_btime "${path}")
     now=$(date +%s)
-    if [[ -n "${file_mtime_val}" ]]; then
-      elapsed=$(( (now - file_mtime_val) / 60 ))
+    if [[ -n "${file_btime_val}" ]] && [[ "${file_btime_val}" =~ ^[0-9]+$ ]]; then
+      elapsed=$(( (now - file_btime_val) / 60 ))
+      (( elapsed < 0 )) && elapsed=0
       session_mins="${elapsed}"
     fi
   fi
