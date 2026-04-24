@@ -1386,6 +1386,44 @@ else
 fi
 echo ""
 
+# ── Claude Code statusline session-mins via file birth time (spec 018) ──
+echo "[claude statusline (spec 018)]"
+_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
+if [ ! -f "$_sl" ]; then
+    fail "missing tracked statusline script (spec 018 checks skipped)"
+else
+    # Structural: file_btime helper is defined
+    if grep -q '^file_btime()' "$_sl"; then
+        ok "file_btime helper is defined"
+    else
+        fail "file_btime helper is missing"
+    fi
+
+    # Structural: file_btime tries %W (Linux) or %B (macOS/BSD)
+    if grep -q 'stat -c %W' "$_sl" && grep -q 'stat -f %B' "$_sl"; then
+        ok "file_btime queries birth time via stat -c %W / -f %B"
+    else
+        fail "file_btime does not query birth time via stat"
+    fi
+
+    # Structural: compute_session_mins uses file_btime (not only mtime)
+    if awk '/^compute_session_mins\(\) \{/,/^}/' "$_sl" \
+        | grep -q 'file_btime'; then
+        ok "compute_session_mins uses file_btime"
+    else
+        fail "compute_session_mins does not use file_btime"
+    fi
+
+    # Structural: JSONL timestamp fallback is wired
+    if awk '/^file_btime\(\) \{/,/^}/' "$_sl" \
+        | grep -q '\.timestamp'; then
+        ok "file_btime falls back to first-line JSONL timestamp"
+    else
+        fail "file_btime has no JSONL timestamp fallback"
+    fi
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
