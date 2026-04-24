@@ -121,8 +121,9 @@ extract_fields() {
   seven_day_pct=$(echo "${input}"   | jq -r '.rate_limits.seven_day.used_percentage // empty')
   seven_day_reset=$(echo "${input}" | jq -r '.rate_limits.seven_day.resets_at // empty')
 
-  total_duration_ms=$(echo "${input}" | jq -r '.cost.total_duration_ms // empty')
-  total_cost=$(echo "${input}"        | jq -r '.cost.total_cost_usd // empty')
+  total_duration_ms=$(echo "${input}"     | jq -r '.cost.total_duration_ms // empty')
+  total_api_duration_ms=$(echo "${input}" | jq -r '.cost.total_api_duration_ms // empty')
+  total_cost=$(echo "${input}"            | jq -r '.cost.total_cost_usd // empty')
 }
 
 # ---------------------------------------------------------------------------
@@ -254,6 +255,42 @@ format_active_time() {
     printf "%s" "${at_h}h ${at_m}m"
   else
     printf "%s" "${at_m}m"
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# format_api_duration <total_api_duration_ms>
+# ---------------------------------------------------------------------------
+# Converts a cumulative API call duration in milliseconds to a human-readable
+# string showing minutes and seconds, e.g. "2m 34s" or "1h 3m 12s".
+# Outputs an empty string for durations of 0 or absent input.
+#
+# Arguments:
+#   $1 - duration in milliseconds (may be a decimal, e.g. "154321.8")
+#######################################
+format_api_duration() {
+  local ms="${1}"
+  local total_secs=0
+
+  if [[ -n "${ms}" ]] && [[ "${ms}" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+    total_secs=$(( ${ms%%.*} / 1000 ))
+  fi
+
+  if [[ "${total_secs}" -le 0 ]]; then
+    printf ""
+    return
+  fi
+
+  local h m s
+  h=$(( total_secs / 3600 ))
+  m=$(( (total_secs % 3600) / 60 ))
+  s=$(( total_secs % 60 ))
+  if [[ "${h}" -gt 0 ]]; then
+    printf "%s" "${h}h ${m}m ${s}s"
+  elif [[ "${m}" -gt 0 ]]; then
+    printf "%s" "${m}m ${s}s"
+  else
+    printf "%s" "${s}s"
   fi
 }
 
@@ -595,6 +632,11 @@ build_line2() {
 # Assembles and prints line 3:
 #   CLAUDE.md count | hooks | [cache stats] | [cost] | time info
 #
+# Time info includes:
+#   ⚡ <active_time>   — total Claude thinking/working time (coarse, to minutes)
+#   ⏱ <api_duration>  — cumulative API round-trip time (precise, to seconds)
+#   🕐 <session_mins>m — wall-clock session age
+#
 # If the time segment would make the line too long (>120 visible chars),
 # it is emitted as a separate line 4 instead.
 #
@@ -604,6 +646,7 @@ build_line2() {
 #   $3 - cost string (may be empty)
 #   $4 - active_time_str (time Claude was actively working, e.g. "5m")
 #   $5 - session_mins (whole minutes since session start)
+#   $6 - api_duration_str (cumulative API call time, e.g. "2m 34s"; may be empty)
 #######################################
 build_line3() {
   local claude_md_count="${1}"
@@ -611,6 +654,7 @@ build_line3() {
   local cost="${3}"
   local active_time_str="${4}"
   local session_mins="${5}"
+  local api_duration_str="${6}"
 
   local line=""
   line="${line}${claude_md_count} CLAUDE.md | 🪝 ${hooks_count} hooks"
@@ -633,22 +677,30 @@ build_line3() {
 
   [[ -n "${cost}" ]] && line="${line} | 💰 ${cost}"
 
-  # Build timing segment: ⚡ <active_time> | 🕐 <session_mins>m
+  # Build timing segment: ⚡ <active_time> | ⏱ <api_duration> | 🕐 <session_mins>m
   local time_seg=""
-  if [[ -n "${active_time_str}" ]] || [[ -n "${session_mins}" ]]; then
-    local active_part session_part
-    active_part=""
-    session_part=""
-    [[ -n "${active_time_str}" ]] && active_part="⚡ ${active_time_str}"
-    [[ -n "${session_mins}" ]]    && session_part="🕐 ${session_mins}m"
+  local active_part api_part session_part
+  active_part=""
+  api_part=""
+  session_part=""
+  [[ -n "${active_time_str}" ]]  && active_part="⚡ ${active_time_str}"
+  [[ -n "${api_duration_str}" ]] && api_part="⏱ ${api_duration_str}"
+  [[ -n "${session_mins}" ]]     && session_part="🕐 ${session_mins}m"
 
-    if [[ -n "${active_part}" ]] && [[ -n "${session_part}" ]]; then
-      time_seg="${active_part} | ${session_part}"
-    elif [[ -n "${active_part}" ]]; then
-      time_seg="${active_part}"
-    else
-      time_seg="${session_part}"
-    fi
+  local parts=()
+  [[ -n "${active_part}" ]]  && parts+=("${active_part}")
+  [[ -n "${api_part}" ]]     && parts+=("${api_part}")
+  [[ -n "${session_part}" ]] && parts+=("${session_part}")
+
+  if [[ "${#parts[@]}" -gt 0 ]]; then
+    local i
+    for (( i = 0; i < ${#parts[@]}; i++ )); do
+      if [[ "${i}" -eq 0 ]]; then
+        time_seg="${parts[i]}"
+      else
+        time_seg="${time_seg} | ${parts[i]}"
+      fi
+    done
   fi
 
   if [[ -n "${time_seg}" ]]; then
@@ -692,11 +744,12 @@ main() {
   collect_git_info "${cwd}"
 
   # Derived values
-  local session_mins active_time_str total_tokens cost
+  local session_mins active_time_str api_duration_str total_tokens cost
   local ctx_pct subagent_count claude_md_count hooks_count
 
   session_mins=$(compute_session_mins "${transcript_path}")
   active_time_str=$(format_active_time "${total_duration_ms}")
+  api_duration_str=$(format_api_duration "${total_api_duration_ms}")
   total_tokens=$(( total_input + total_output ))
 
   ctx_pct=0
@@ -716,7 +769,7 @@ main() {
   line1=$(build_line1 "${total_tokens}" "${subagent_count}")
   line2=$(build_line2 "${ctx_pct}" "${five_hour_pct}" "${five_hour_reset}" "${seven_day_pct}" "${seven_day_reset}")
   # build_line3 may emit 1 or 2 lines (the second contains timing info overflow)
-  line3_output=$(build_line3 "${claude_md_count}" "${hooks_count}" "${cost}" "${active_time_str}" "${session_mins}")
+  line3_output=$(build_line3 "${claude_md_count}" "${hooks_count}" "${cost}" "${active_time_str}" "${session_mins}" "${api_duration_str}")
 
   printf '%b\n%b\n%b\n' "${line1}" "${line2}" "${line3_output}"
 }
