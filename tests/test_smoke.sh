@@ -1315,6 +1315,77 @@ if [ -f "$_gitcfg" ]; then
 fi
 echo ""
 
+# ── Claude Code statusline API duration display (spec 017) ───────────────
+echo "[claude statusline (spec 017)]"
+_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
+if [ ! -f "$_sl" ]; then
+    fail "missing tracked statusline script (spec 017 checks skipped)"
+else
+    # Structural: extract_fields reads cost.total_api_duration_ms
+    if grep -q 'total_api_duration_ms=.*cost.total_api_duration_ms' "$_sl"; then
+        ok "extract_fields reads cost.total_api_duration_ms"
+    else
+        fail "extract_fields does not read cost.total_api_duration_ms"
+    fi
+
+    # Structural: format_api_duration helper is defined
+    if grep -q '^format_api_duration()' "$_sl"; then
+        ok "format_api_duration helper is defined"
+    else
+        fail "format_api_duration helper is missing"
+    fi
+
+    # Structural: build_line3 emits the ⏱ marker
+    if grep -q '⏱ \${api_duration_str}' "$_sl"; then
+        ok "build_line3 renders the ⏱ api-duration segment"
+    else
+        fail "build_line3 does not render the ⏱ api-duration segment"
+    fi
+
+    # Structural: main wires api_duration_str into build_line3 call
+    if grep -q 'build_line3.*"\${api_duration_str}"' "$_sl"; then
+        ok "main passes api_duration_str to build_line3"
+    else
+        fail "main does not pass api_duration_str to build_line3"
+    fi
+
+    # Behavioural: format_api_duration produces expected strings
+    if command -v bash >/dev/null 2>&1; then
+        _fn=$(awk '/^format_api_duration\(\) \{/,/^}/' "$_sl")
+        _zero=$(bash -c "$_fn"'
+            format_api_duration 0' 2>/dev/null)
+        _secs=$(bash -c "$_fn"'
+            format_api_duration 42000' 2>/dev/null)
+        _min=$(bash -c "$_fn"'
+            format_api_duration 154321' 2>/dev/null)
+        _hr=$(bash -c "$_fn"'
+            format_api_duration 3792000' 2>/dev/null)
+        if [ -z "$_zero" ]; then
+            ok "format_api_duration returns empty for 0 ms"
+        else
+            fail "format_api_duration returned '$_zero' for 0 ms"
+        fi
+        if [ "$_secs" = "42s" ]; then
+            ok "format_api_duration formats sub-minute as Xs"
+        else
+            fail "format_api_duration returned '$_secs' for 42000 ms"
+        fi
+        if [ "$_min" = "2m 34s" ]; then
+            ok "format_api_duration formats minutes as Xm Ys"
+        else
+            fail "format_api_duration returned '$_min' for 154321 ms"
+        fi
+        if [ "$_hr" = "1h 3m 12s" ]; then
+            ok "format_api_duration formats hours as Xh Ym Zs"
+        else
+            fail "format_api_duration returned '$_hr' for 3792000 ms"
+        fi
+    else
+        ok "skipped behavioural format_api_duration check (bash not available)"
+    fi
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
