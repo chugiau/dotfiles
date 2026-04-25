@@ -8,7 +8,7 @@
 #
 # Bypass per-command: append --no-quarantine
 #
-# Supported: pip, uv, pipx, poetry | npm, pnpm, yarn, bun
+# Supported: pip, uv, pipx, poetry | npm, yarn, bun
 #
 
 : ${PKG_QUARANTINE_DAYS:=7}
@@ -255,12 +255,6 @@ npm() {
   local -a __pq_args=("$@")
   __pkg_quarantine_wrap npm npm install i add || return $?
   command npm "${__pq_args[@]}"
-}
-
-pnpm() {
-  local -a __pq_args=("$@")
-  __pkg_quarantine_wrap pnpm npm add i install || return $?
-  command pnpm "${__pq_args[@]}"
 }
 
 yarn() {
