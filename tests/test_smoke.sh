@@ -417,11 +417,10 @@ fi
 # install script. The [dot_zprofile] section below asserts the wireup.
 # pnpm: spec 019 retires pnpm entirely.  No PNPM_HOME export, no
 # pnpm-conditional block, no pnpm completion generation should remain.
-_pnpm_home_count="$(grep -c 'PNPM_HOME' "$_zshrc" 2>/dev/null || printf 0)"
-if [ "$_pnpm_home_count" = "0" ]; then
-    ok "dot_zshrc has zero PNPM_HOME references (spec 019)"
+if grep -q 'PNPM_HOME' "$_zshrc"; then
+    fail "dot_zshrc still references PNPM_HOME (spec 019 — pnpm is retired)"
 else
-    fail "dot_zshrc still references PNPM_HOME $_pnpm_home_count time(s) (spec 019 — pnpm is retired)"
+    ok "dot_zshrc has zero PNPM_HOME references (spec 019)"
 fi
 if grep -q 'command -v pnpm' "$_zshrc"; then
     fail "dot_zshrc still has a 'command -v pnpm' guard (spec 019 — pnpm is retired)"
