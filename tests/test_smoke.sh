@@ -201,17 +201,18 @@ if command -v mise >/dev/null 2>&1; then
 else
     echo "[mise] not installed — skipping config parse"
 fi
-# pnpm must be declared so that `pnpm` and `pnpx` ship on every machine
-# (mise's core pnpm plugin downloads the standalone binary, no Node needed).
+# pnpm must NOT be declared — spec 019 retires pnpm in favour of bun
+# as the sole JS package manager managed by these dotfiles. Mirrors
+# the spec-005 pattern used to assert neovim is no longer mise-managed.
 _misecfg="$SCRIPT_DIR/home/dot_config/mise/config.toml"
 if awk '
     /^\[/                         { section = $0 }
     section == "[tools]" && /^[[:space:]]*pnpm[[:space:]]*=/ { found = 1 }
     END { exit(found ? 0 : 1) }
 ' "$_misecfg"; then
-    ok "mise config declares pnpm under [tools]"
+    fail "mise config still declares pnpm (spec 019 — bun replaces pnpm)"
 else
-    fail "mise config does not declare pnpm under [tools]"
+    ok "mise config no longer declares pnpm (spec 019)"
 fi
 # bun must be declared so `bun` ships on every machine via mise shims,
 # removing the need for the ~/.bun PATH-shadow setup in dot_zshrc.
@@ -414,24 +415,20 @@ fi
 # NB: the spec-003 "dot_zshrc still wires brew shellenv" assertion retired
 # in spec 004 — brew shellenv moved to dot_zprofile per Homebrew's own
 # install script. The [dot_zprofile] section below asserts the wireup.
-# pnpm: the second, unconditional PNPM_HOME block must be gone. Exactly
-# one `export PNPM_HOME=` survives (inside the guarded `command -v pnpm`
-# block).
-_pnpm_home_count="$(grep -c 'export PNPM_HOME=' "$_zshrc" 2>/dev/null || printf 0)"
-if [ "$_pnpm_home_count" = "1" ]; then
-    ok "dot_zshrc exports PNPM_HOME exactly once (the guarded block)"
+# pnpm: spec 019 retires pnpm entirely.  No PNPM_HOME export, no
+# pnpm-conditional block, no pnpm completion generation should remain.
+_pnpm_home_count="$(grep -c 'PNPM_HOME' "$_zshrc" 2>/dev/null || printf 0)"
+if [ "$_pnpm_home_count" = "0" ]; then
+    ok "dot_zshrc has zero PNPM_HOME references (spec 019)"
 else
-    fail "dot_zshrc exports PNPM_HOME $_pnpm_home_count times (expected 1)"
+    fail "dot_zshrc still references PNPM_HOME $_pnpm_home_count time(s) (spec 019 — pnpm is retired)"
 fi
-# The surviving pnpm block must only touch $PATH when PNPM_HOME
-# actually exists, otherwise a machine that has never installed a
-# global pnpm package writes a phantom dir into PATH for no gain.
-if grep -q '\[ -d "\$PNPM_HOME" \]' "$_zshrc"; then
-    ok "dot_zshrc guards PNPM_HOME PATH write on the directory existing"
+if grep -q 'command -v pnpm' "$_zshrc"; then
+    fail "dot_zshrc still has a 'command -v pnpm' guard (spec 019 — pnpm is retired)"
 else
-    fail "dot_zshrc does not guard PNPM_HOME PATH write on [ -d \"\$PNPM_HOME\" ]"
+    ok "dot_zshrc no longer guards on command -v pnpm (spec 019)"
 fi
-# Spec 007 amendment: the bun, dotnet, and pnpm blocks must APPEND to
+# Spec 007 amendment: the bun and dotnet blocks must APPEND to
 # PATH (`"$PATH:..."`), not prepend (`"...:$PATH"`). `mise activate`
 # runs in hook-env mode and splices its tool paths into a slot
 # computed from PATH at eval time, which empirically lands *after*
@@ -459,17 +456,6 @@ if grep -qF 'export PATH="$DOTNET_ROOT:$DOTNET_ROOT/tools:$PATH"' "$_zshrc"; the
     fail "dot_zshrc still prepends DOTNET_ROOT[/tools] (spec 007 amendment forbids this)"
 else
     ok "dot_zshrc no longer prepends DOTNET_ROOT[/tools]"
-fi
-# pnpm:
-if grep -qF 'export PATH="$PATH:$PNPM_HOME"' "$_zshrc"; then
-    ok "dot_zshrc appends PNPM_HOME to PATH (spec 007 amendment)"
-else
-    fail "dot_zshrc does not append PNPM_HOME (expected: export PATH=\"\$PATH:\$PNPM_HOME\")"
-fi
-if grep -qF 'export PATH="$PNPM_HOME:$PATH"' "$_zshrc"; then
-    fail "dot_zshrc still prepends PNPM_HOME (spec 007 amendment forbids this)"
-else
-    ok "dot_zshrc no longer prepends PNPM_HOME"
 fi
 echo ""
 
