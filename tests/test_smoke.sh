@@ -1412,17 +1412,17 @@ echo ""
 # ── Spec 020: shell autocomplete wiring ────────────────────────────────────
 # Three layers: system PM packages (bash-completion, zsh-syntax-highlighting,
 # zsh-autosuggestions in every distro branch); user-scope mise-tool completion
-# generation via run_onchange_after_15-completions.sh.tmpl; dot_zshrc wires
+# generation via run_onchange_after_16-completions.sh.tmpl; dot_zshrc wires
 # in the completions module before omz, bashcompinit after, and the two
 # zsh-* plugins at end of file.
 echo "[spec 020 — shell completions]"
 
 check_exists "home/dot_config/dotfiles/modules/completions.zsh"
-check_exists "home/run_onchange_after_15-completions.sh.tmpl"
-check_sh_parse "home/run_onchange_after_15-completions.sh.tmpl"
-check_no_bashisms "home/run_onchange_after_15-completions.sh.tmpl"
+check_exists "home/run_onchange_after_16-completions.sh.tmpl"
+check_sh_parse "home/run_onchange_after_16-completions.sh.tmpl"
+check_no_bashisms "home/run_onchange_after_16-completions.sh.tmpl"
 
-_complgen="$SCRIPT_DIR/home/run_onchange_after_15-completions.sh.tmpl"
+_complgen="$SCRIPT_DIR/home/run_onchange_after_16-completions.sh.tmpl"
 if [ -f "$_complgen" ]; then
     # Hash directive ties re-runs to the mise manifest (mirrors spec 010's
     # mise-config-hash pattern in run_onchange_after_10-mise-install).

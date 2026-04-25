@@ -85,7 +85,7 @@ a few ms at shell startup and is left alone.
   (e.g. if the OPENSPEC block re-sets `fpath` later) collapse
   rather than accumulate across re-sources.
 
-### `home/run_onchange_after_15-completions.sh.tmpl` (new)
+### `home/run_onchange_after_16-completions.sh.tmpl` (new)
 
 - POSIX sh, mirrors the structure of
   `run_onchange_after_10-mise-install.sh.tmpl`.
@@ -169,9 +169,9 @@ a few ms at shell startup and is left alone.
 A new `[completions]` section asserts:
 
 - `check_exists "home/dot_config/dotfiles/modules/completions.zsh"`
-- `check_exists "home/run_onchange_after_15-completions.sh.tmpl"`
-- `check_sh_parse "home/run_onchange_after_15-completions.sh.tmpl"`
-- `check_no_bashisms "home/run_onchange_after_15-completions.sh.tmpl"`
+- `check_exists "home/run_onchange_after_16-completions.sh.tmpl"`
+- `check_sh_parse "home/run_onchange_after_16-completions.sh.tmpl"`
+- `check_no_bashisms "home/run_onchange_after_16-completions.sh.tmpl"`
 - The new run_onchange template contains a
   `completion-config-hash:` line (mirrors the spec-010
   `mise-config-hash` smoke check pattern).
@@ -241,7 +241,7 @@ A new `[completions]` section asserts:
 
 - `specs/020-shell-completions.md` (new)
 - `home/dot_config/dotfiles/modules/completions.zsh` (new)
-- `home/run_onchange_after_15-completions.sh.tmpl` (new)
+- `home/run_onchange_after_16-completions.sh.tmpl` (new)
 - `home/run_once_before_10-system-packages.sh.tmpl` (add packages
   to all four distro branches; no other changes)
 - `home/dot_zshrc` (three edits: source new module before omz;

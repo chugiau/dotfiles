@@ -2,7 +2,7 @@
 #
 # This module prepends the user-scope completion directory to fpath
 # so completions generated for mise-managed tools by
-# run_onchange_after_15-completions.sh.tmpl shadow any same-named
+# run_onchange_after_16-completions.sh.tmpl shadow any same-named
 # system-scope completions (/usr/share/zsh/{site-functions,vendor-
 # completions}). The controlling rule is "earlier in fpath wins";
 # see the spec for the system / user / project scope-resolution
