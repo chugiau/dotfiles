@@ -84,31 +84,6 @@ if [ -d "$FNM_PATH" ]; then
   fi
 fi
 
-# if pnpm is installed, load its environment
-if command -v pnpm >/dev/null 2>&1; then
-  export PNPM_HOME="$HOME/.local/share/pnpm"
-  # $PNPM_HOME is the install dir for global pnpm packages
-  # (`pnpm add -g …`), not the pnpm binary itself — that comes from
-  # mise.  APPEND it to $PATH (never prepend) so mise's own pnpm shim
-  # stays ahead of anything the user has globally installed.  Spec 007
-  # amendment: prepending was what tripped `mise doctor`'s "tool paths
-  # are not first in PATH" warning in the first place.  Still guarded
-  # on the dir existing so a fresh machine that has never run
-  # `pnpm add -g` does not write a phantom entry.
-  if [ -d "$PNPM_HOME" ]; then
-    case ":$PATH:" in
-      *":$PNPM_HOME:"*) ;;
-      *) export PATH="$PATH:$PNPM_HOME" ;;
-    esac
-  fi
-
-  # Create completion for pnpm if not already present
-  if [ ! -f "$HOME/.zsh/completions/_pnpm" ]; then
-    mkdir -p "$HOME/.zsh/completions"
-    pnpm completion zsh > "$HOME/.zsh/completions/_pnpm"
-  fi
-fi
-
 # .NET — only when a real dotnet binary lives under ~/.dotnet.
 # Guarded on the binary (not the directory) because `~/.dotnet/corefx`
 # can linger as cruft on a machine that has never actually installed
@@ -151,7 +126,7 @@ fi
 # of dot_zshrc as defence in depth against future PATH-prepending
 # stanzas sneaking in above it, but the *controlling* fix for
 # `mise doctor`'s "mise tool paths are not first in PATH" warning is
-# the append switch in the bun / dotnet / pnpm blocks above — see the
+# the append switch in the bun / dotnet blocks above — see the
 # spec 007 amendment for the full trace.  `mise activate zsh` runs in
 # hook-env mode: it captures PATH at eval time and splices its tool
 # paths into a diff-computed slot, which lands *after* any prepended
