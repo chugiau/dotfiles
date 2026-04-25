@@ -1409,6 +1409,104 @@ else
 fi
 echo ""
 
+# ── Spec 020: shell autocomplete wiring ────────────────────────────────────
+# Three layers: system PM packages (bash-completion, zsh-syntax-highlighting,
+# zsh-autosuggestions in every distro branch); user-scope mise-tool completion
+# generation via run_onchange_after_15-completions.sh.tmpl; dot_zshrc wires
+# in the completions module before omz, bashcompinit after, and the two
+# zsh-* plugins at end of file.
+echo "[spec 020 — shell completions]"
+
+check_exists "home/dot_config/dotfiles/modules/completions.zsh"
+check_exists "home/run_onchange_after_15-completions.sh.tmpl"
+check_sh_parse "home/run_onchange_after_15-completions.sh.tmpl"
+check_no_bashisms "home/run_onchange_after_15-completions.sh.tmpl"
+
+_complgen="$SCRIPT_DIR/home/run_onchange_after_15-completions.sh.tmpl"
+if [ -f "$_complgen" ]; then
+    # Hash directive ties re-runs to the mise manifest (mirrors spec 010's
+    # mise-config-hash pattern in run_onchange_after_10-mise-install).
+    if grep -q '^# completion-config-hash:' "$_complgen"; then
+        ok "completions generator declares completion-config-hash"
+    else
+        fail "completions generator missing completion-config-hash directive"
+    fi
+fi
+
+_zshrc="$SCRIPT_DIR/home/dot_zshrc"
+if [ -f "$_zshrc" ]; then
+    if grep -qF 'source "$DOTFILES/modules/completions.zsh"' "$_zshrc"; then
+        ok "dot_zshrc sources completions module"
+    else
+        fail "dot_zshrc does not source $DOTFILES/modules/completions.zsh"
+    fi
+
+    # bashcompinit must run after compinit (which omz invokes).  We do not
+    # assert the line order here; the structural check is "called at all".
+    if grep -q 'bashcompinit' "$_zshrc"; then
+        ok "dot_zshrc invokes bashcompinit"
+    else
+        fail "dot_zshrc does not invoke bashcompinit"
+    fi
+
+    if grep -q 'zsh-autosuggestions\.zsh' "$_zshrc"; then
+        ok "dot_zshrc sources zsh-autosuggestions.zsh"
+    else
+        fail "dot_zshrc does not source zsh-autosuggestions.zsh"
+    fi
+
+    if grep -q 'zsh-syntax-highlighting\.zsh' "$_zshrc"; then
+        ok "dot_zshrc sources zsh-syntax-highlighting.zsh"
+    else
+        fail "dot_zshrc does not source zsh-syntax-highlighting.zsh"
+    fi
+fi
+
+_complmod="$SCRIPT_DIR/home/dot_config/dotfiles/modules/completions.zsh"
+if [ -f "$_complmod" ]; then
+    # Module must guard on the user-scope dir existing so a fresh-bootstrap
+    # shell (run_onchange not yet executed) sources cleanly.
+    if grep -q '\.local/share/zsh/completions' "$_complmod"; then
+        ok "completions module references user-scope dir"
+    else
+        fail "completions module missing user-scope dir reference"
+    fi
+    # Prepend (user-scope wins over system-scope per spec).
+    if grep -qE 'fpath=\(.*completions.*\$fpath\)' "$_complmod"; then
+        ok "completions module prepends user dir to fpath"
+    else
+        fail "completions module does not prepend user dir to fpath"
+    fi
+fi
+
+# System-packages: bash-completion + zsh-syntax-highlighting + zsh-autosuggestions
+# in every distro branch.  Reuses the awk pattern from spec 010.
+if [ -f "$_syspkgs" ]; then
+    for fn in install_debian install_arch install_fedora install_darwin; do
+        for pkg in bash-completion zsh-syntax-highlighting zsh-autosuggestions; do
+            # macOS uses bash-completion@2 instead of bash-completion.
+            search="$pkg"
+            if [ "$fn" = "install_darwin" ] && [ "$pkg" = "bash-completion" ]; then
+                search='bash-completion@2'
+            fi
+            if awk -v fn="$fn" -v pkg="$search" '
+                $0 ~ "^" fn "\\(\\) *\\{" { in_fn=1; next }
+                in_fn && /^\}/            { in_fn=0 }
+                in_fn {
+                    pat = "(^|[[:space:]])" pkg "([[:space:]]|$)"
+                    if ($0 ~ pat) found=1
+                }
+                END { exit(found ? 0 : 1) }
+            ' "$_syspkgs"; then
+                ok "$fn installs $search"
+            else
+                fail "$fn does not install $search"
+            fi
+        done
+    done
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
