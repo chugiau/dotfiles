@@ -1166,36 +1166,46 @@ else
 fi
 echo ""
 
+# ── Statusline module locations (spec 021 refactor) ────────────────────────
+# After spec 021 the helpers live under home/dot_claude/statusline/{core,data,
+# width,items,layout}.sh; the entrypoint is a thin orchestrator. The
+# spec-013/014/017/018 structural assertions retarget to those modules.
+_sl_main="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
+_sl_core="$SCRIPT_DIR/home/dot_claude/statusline/core.sh"
+_sl_data="$SCRIPT_DIR/home/dot_claude/statusline/data.sh"
+_sl_items="$SCRIPT_DIR/home/dot_claude/statusline/items.sh"
+_sl_layout="$SCRIPT_DIR/home/dot_claude/statusline/layout.sh"
+_sl_width="$SCRIPT_DIR/home/dot_claude/statusline/width.sh"
+
 # ── Claude Code statusline long-name truncation (spec 013) ─────────────────
 echo "[claude statusline (spec 013)]"
-_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
-if [ ! -f "$_sl" ]; then
-    fail "missing tracked statusline script"
+if [ ! -f "$_sl_core" ] || [ ! -f "$_sl_items" ]; then
+    fail "missing statusline modules (spec 021 refactor)"
 else
-    # Structural: truncate_name helper is defined
-    if grep -q '^truncate_name()' "$_sl"; then
-        ok "truncate_name helper is defined"
+    # Structural: truncate_name helper is defined in core.sh
+    if grep -q '^truncate_name()' "$_sl_core"; then
+        ok "truncate_name helper is defined (core.sh)"
     else
-        fail "truncate_name helper is missing"
+        fail "truncate_name helper is missing from core.sh"
     fi
 
     # Structural: 🪵 worktree segment applies truncate_name with 28 cap
-    if grep -q 'truncate_name "\${git_worktree}" 28' "$_sl"; then
-        ok "worktree slug is truncated to 28 chars"
+    if grep -q 'truncate_name "\${git_worktree}" 28' "$_sl_items"; then
+        ok "worktree slug is truncated to 28 chars (items.sh)"
     else
-        fail "worktree slug is not truncated to 28 chars"
+        fail "worktree slug is not truncated to 28 chars in items.sh"
     fi
 
     # Structural: 🌿 branch segment (non-worktree path) truncates to 30 chars
-    if grep -q 'truncate_name "\${git_branch}" 30' "$_sl"; then
-        ok "branch name is truncated to 30 chars outside a worktree"
+    if grep -q 'truncate_name "\${git_branch}" 30' "$_sl_items"; then
+        ok "branch name is truncated to 30 chars outside a worktree (items.sh)"
     else
         fail "branch name is not truncated to 30 chars outside a worktree"
     fi
 
     # Structural: worktree-branch dedup suppresses redundant branch display
-    if grep -q '"\${git_branch}" == "worktree-\${git_worktree}"' "$_sl" \
-        && grep -q 'branch_redundant=1' "$_sl"; then
+    if grep -q '"\${git_branch}" == "worktree-\${git_worktree}"' "$_sl_items" \
+        && grep -q 'branch_redundant=1' "$_sl_items"; then
         ok "branch display is suppressed when it encodes the worktree slug"
     else
         fail "branch display is not suppressed for worktree-encoded branches"
@@ -1203,7 +1213,7 @@ else
 
     # Behavioural: run truncate_name under bash with below/above-threshold inputs
     if command -v bash >/dev/null 2>&1; then
-        _fn=$(awk '/^truncate_name\(\) \{/,/^}/' "$_sl")
+        _fn=$(awk '/^truncate_name\(\) \{/,/^}/' "$_sl_core")
         _below=$(bash -c "$_fn"'
             truncate_name "short" 10' 2>/dev/null)
         _above=$(bash -c "$_fn"'
@@ -1226,36 +1236,35 @@ echo ""
 
 # ── Claude Code statusline ahead/behind counters (spec 014) ───────────────
 echo "[claude statusline (spec 014)]"
-_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
-if [ ! -f "$_sl" ]; then
-    fail "missing tracked statusline script (spec 014 checks skipped)"
+if [ ! -f "$_sl_data" ] || [ ! -f "$_sl_items" ]; then
+    fail "missing statusline modules (spec 014 checks skipped)"
 else
     # Structural: collect_git_info must initialise git_ahead and git_behind
-    if grep -q 'git_ahead=0' "$_sl" && grep -q 'git_behind=0' "$_sl"; then
-        ok "collect_git_info initialises git_ahead and git_behind"
+    if grep -q 'git_ahead=0' "$_sl_data" && grep -q 'git_behind=0' "$_sl_data"; then
+        ok "collect_git_info initialises git_ahead and git_behind (data.sh)"
     else
         fail "collect_git_info does not initialise git_ahead / git_behind"
     fi
 
     # Structural: ahead/behind populated via rev-list or equivalent
-    if grep -qE 'rev-list|@\{u\}|@\{upstream\}' "$_sl"; then
+    if grep -qE 'rev-list|@\{u\}|@\{upstream\}' "$_sl_data"; then
         ok "collect_git_info uses git rev-list / upstream ref for ahead/behind"
     else
         fail "collect_git_info does not use git rev-list / upstream ref"
     fi
 
-    # Structural: ↑ (ahead) indicator rendered in build_line1
-    if grep -q '↑' "$_sl"; then
-        ok "build_line1 contains ↑ (ahead) indicator"
+    # Structural: ↑ (ahead) indicator rendered by an item emitter
+    if grep -q '↑' "$_sl_items"; then
+        ok "items.sh contains ↑ (ahead) indicator"
     else
-        fail "build_line1 missing ↑ (ahead) indicator"
+        fail "items.sh missing ↑ (ahead) indicator"
     fi
 
-    # Structural: ↓ (behind) indicator rendered in build_line1
-    if grep -q '↓' "$_sl"; then
-        ok "build_line1 contains ↓ (behind) indicator"
+    # Structural: ↓ (behind) indicator rendered by an item emitter
+    if grep -q '↓' "$_sl_items"; then
+        ok "items.sh contains ↓ (behind) indicator"
     else
-        fail "build_line1 missing ↓ (behind) indicator"
+        fail "items.sh missing ↓ (behind) indicator"
     fi
 fi
 echo ""
@@ -1302,41 +1311,40 @@ echo ""
 
 # ── Claude Code statusline API duration display (spec 017) ───────────────
 echo "[claude statusline (spec 017)]"
-_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
-if [ ! -f "$_sl" ]; then
-    fail "missing tracked statusline script (spec 017 checks skipped)"
+if [ ! -f "$_sl_core" ] || [ ! -f "$_sl_data" ] || [ ! -f "$_sl_items" ]; then
+    fail "missing statusline modules (spec 017 checks skipped)"
 else
     # Structural: extract_fields reads cost.total_api_duration_ms
-    if grep -q 'total_api_duration_ms=.*cost.total_api_duration_ms' "$_sl"; then
-        ok "extract_fields reads cost.total_api_duration_ms"
+    if grep -q 'total_api_duration_ms=.*cost.total_api_duration_ms' "$_sl_data"; then
+        ok "extract_fields reads cost.total_api_duration_ms (data.sh)"
     else
         fail "extract_fields does not read cost.total_api_duration_ms"
     fi
 
     # Structural: format_api_duration helper is defined
-    if grep -q '^format_api_duration()' "$_sl"; then
-        ok "format_api_duration helper is defined"
+    if grep -q '^format_api_duration()' "$_sl_core"; then
+        ok "format_api_duration helper is defined (core.sh)"
     else
-        fail "format_api_duration helper is missing"
+        fail "format_api_duration helper is missing from core.sh"
     fi
 
-    # Structural: build_line3 emits the ⏱ marker
-    if grep -q '⏱ \${api_duration_str}' "$_sl"; then
-        ok "build_line3 renders the ⏱ api-duration segment"
+    # Structural: an item emitter renders the ⏱ marker with api_duration_str
+    if grep -q '⏱ \${api_duration_str}' "$_sl_items"; then
+        ok "items.sh renders the ⏱ api-duration segment"
     else
-        fail "build_line3 does not render the ⏱ api-duration segment"
+        fail "items.sh does not render the ⏱ api-duration segment"
     fi
 
-    # Structural: main wires api_duration_str into build_line3 call
-    if grep -q 'build_line3.*"\${api_duration_str}"' "$_sl"; then
-        ok "main passes api_duration_str to build_line3"
+    # Structural: entrypoint computes api_duration_str via format_api_duration
+    if grep -q 'api_duration_str=.*format_api_duration' "$_sl_main"; then
+        ok "entrypoint computes api_duration_str via format_api_duration"
     else
-        fail "main does not pass api_duration_str to build_line3"
+        fail "entrypoint does not compute api_duration_str"
     fi
 
     # Behavioural: format_api_duration produces expected strings
     if command -v bash >/dev/null 2>&1; then
-        _fn=$(awk '/^format_api_duration\(\) \{/,/^}/' "$_sl")
+        _fn=$(awk '/^format_api_duration\(\) \{/,/^}/' "$_sl_core")
         _zero=$(bash -c "$_fn"'
             format_api_duration 0' 2>/dev/null)
         _secs=$(bash -c "$_fn"'
@@ -1373,26 +1381,25 @@ echo ""
 
 # ── Claude Code statusline session-mins via file birth time (spec 018) ──
 echo "[claude statusline (spec 018)]"
-_sl="$SCRIPT_DIR/home/dot_claude/executable_statusline-command.sh"
-if [ ! -f "$_sl" ]; then
-    fail "missing tracked statusline script (spec 018 checks skipped)"
+if [ ! -f "$_sl_data" ]; then
+    fail "missing statusline data module (spec 018 checks skipped)"
 else
     # Structural: file_btime helper is defined
-    if grep -q '^file_btime()' "$_sl"; then
-        ok "file_btime helper is defined"
+    if grep -q '^file_btime()' "$_sl_data"; then
+        ok "file_btime helper is defined (data.sh)"
     else
-        fail "file_btime helper is missing"
+        fail "file_btime helper is missing from data.sh"
     fi
 
     # Structural: file_btime tries %W (Linux) or %B (macOS/BSD)
-    if grep -q 'stat -c %W' "$_sl" && grep -q 'stat -f %B' "$_sl"; then
+    if grep -q 'stat -c %W' "$_sl_data" && grep -q 'stat -f %B' "$_sl_data"; then
         ok "file_btime queries birth time via stat -c %W / -f %B"
     else
         fail "file_btime does not query birth time via stat"
     fi
 
     # Structural: compute_session_mins uses file_btime (not only mtime)
-    if awk '/^compute_session_mins\(\) \{/,/^}/' "$_sl" \
+    if awk '/^compute_session_mins\(\) \{/,/^}/' "$_sl_data" \
         | grep -q 'file_btime'; then
         ok "compute_session_mins uses file_btime"
     else
@@ -1400,7 +1407,7 @@ else
     fi
 
     # Structural: JSONL timestamp fallback is wired
-    if awk '/^file_btime\(\) \{/,/^}/' "$_sl" \
+    if awk '/^file_btime\(\) \{/,/^}/' "$_sl_data" \
         | grep -q '\.timestamp'; then
         ok "file_btime falls back to first-line JSONL timestamp"
     else
@@ -1504,6 +1511,168 @@ if [ -f "$_syspkgs" ]; then
             fi
         done
     done
+fi
+echo ""
+
+# ── Claude Code statusline responsive layout (spec 021) ─────────────────
+# Verify the item-list + packer architecture: five module files exist and
+# parse, the entrypoint sources them, and the renderer adapts to terminal
+# width via CLAUDE_STATUSLINE_COLS without exceeding 5 lines.
+echo "[claude statusline (spec 021)]"
+
+_sldir="$SCRIPT_DIR/home/dot_claude/statusline"
+
+# Module files exist + parse cleanly under bash
+for mod in core data width items layout; do
+    f="$_sldir/$mod.sh"
+    if [ -f "$f" ]; then
+        ok "module exists: statusline/$mod.sh"
+    else
+        fail "module missing: statusline/$mod.sh"
+    fi
+done
+
+if command -v bash >/dev/null 2>&1; then
+    for mod in core data width items layout; do
+        f="$_sldir/$mod.sh"
+        if [ -f "$f" ] && bash -n "$f" 2>/dev/null; then
+            ok "bash -n: statusline/$mod.sh"
+        else
+            fail "bash -n: statusline/$mod.sh (syntax error or missing)"
+        fi
+    done
+fi
+
+# Width module: detect_columns + escape hatch + 80 fallback
+if [ -f "$_sl_width" ]; then
+    if grep -q '^detect_columns()' "$_sl_width"; then
+        ok "detect_columns is defined in width.sh"
+    else
+        fail "detect_columns is not defined in width.sh"
+    fi
+    if grep -q 'CLAUDE_STATUSLINE_COLS' "$_sl_width"; then
+        ok "detect_columns honours CLAUDE_STATUSLINE_COLS escape hatch"
+    else
+        fail "detect_columns does not honour CLAUDE_STATUSLINE_COLS"
+    fi
+    if grep -qE '(^|[^0-9])80([^0-9]|$)' "$_sl_width"; then
+        ok "detect_columns falls back to literal 80"
+    else
+        fail "detect_columns has no 80 fallback literal"
+    fi
+fi
+
+# Items module: _ITEMS array + item_push helper
+if [ -f "$_sl_items" ]; then
+    if grep -q '_ITEMS' "$_sl_items" && grep -q '^item_push()' "$_sl_items"; then
+        ok "_ITEMS array + item_push helper defined in items.sh"
+    else
+        fail "_ITEMS / item_push missing from items.sh"
+    fi
+fi
+
+# Layout module: layout_pack + layout_render + max_lines = 5
+if [ -f "$_sl_layout" ]; then
+    if grep -q '^layout_pack()' "$_sl_layout" \
+       && grep -q '^layout_render()' "$_sl_layout"; then
+        ok "layout_pack + layout_render defined in layout.sh"
+    else
+        fail "layout_pack / layout_render missing from layout.sh"
+    fi
+    if grep -qE 'max_lines.*=.*5|=5.*max_lines|MAX_LINES.*=.*5' "$_sl_layout"; then
+        ok "layout module references max_lines = 5"
+    else
+        fail "layout module has no max_lines = 5 reference"
+    fi
+fi
+
+# Entrypoint sources all 5 modules
+if [ -f "$_sl_main" ]; then
+    _missing_src=""
+    for mod in core data width items layout; do
+        if grep -q "statusline/$mod.sh" "$_sl_main"; then
+            :
+        else
+            _missing_src="$_missing_src $mod"
+        fi
+    done
+    if [ -z "$_missing_src" ]; then
+        ok "entrypoint sources all 5 statusline modules"
+    else
+        fail "entrypoint missing source for:$_missing_src"
+    fi
+fi
+
+# Behavioural: rendered output respects terminal width
+if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
+        && [ -f "$_sl_main" ]; then
+    _fixture='{
+      "model": {"id":"claude-opus-4-7","display_name":"Opus"},
+      "workspace": {"current_dir":"/tmp","project_dir":"/tmp"},
+      "cwd": "/tmp",
+      "session_id": "spec021-test",
+      "transcript_path": "/dev/null",
+      "version": "2.1.90",
+      "cost": {"total_cost_usd":0.123,"total_duration_ms":60000,"total_api_duration_ms":15000},
+      "context_window": {
+        "total_input_tokens": 12000,
+        "total_output_tokens": 3000,
+        "used_percentage": 25,
+        "current_usage": {
+          "input_tokens": 1000,
+          "output_tokens": 200,
+          "cache_creation_input_tokens": 500,
+          "cache_read_input_tokens": 4000
+        }
+      },
+      "rate_limits": {
+        "five_hour": {"used_percentage":42,"resets_at":9999999999},
+        "seven_day": {"used_percentage":13,"resets_at":9999999999}
+      }
+    }'
+
+    # Width 200 → 1 line, contains model and Context
+    _out200=$(printf '%s' "$_fixture" | \
+        env -u COLUMNS CLAUDE_STATUSLINE_COLS=200 \
+        bash "$_sl_main" 2>/dev/null)
+    _lines200=$(printf '%s\n' "$_out200" | grep -c .)
+    if [ "$_lines200" -eq 1 ] \
+       && printf '%s' "$_out200" | grep -q 'Opus' \
+       && printf '%s' "$_out200" | grep -q 'Context'; then
+        ok "width=200 renders 1 line containing model + Context"
+    else
+        fail "width=200 produced $_lines200 line(s); expected 1 with Opus+Context"
+    fi
+
+    # Width 80 → 2-5 lines, model + Context + Weekly all present
+    _out80=$(printf '%s' "$_fixture" | \
+        env -u COLUMNS CLAUDE_STATUSLINE_COLS=80 \
+        bash "$_sl_main" 2>/dev/null)
+    _lines80=$(printf '%s\n' "$_out80" | grep -c .)
+    if [ "$_lines80" -ge 2 ] && [ "$_lines80" -le 5 ] \
+       && printf '%s' "$_out80" | grep -q 'Opus' \
+       && printf '%s' "$_out80" | grep -q 'Context'; then
+        ok "width=80 renders $_lines80 line(s) containing model + Context"
+    else
+        fail "width=80 produced $_lines80 line(s); expected 2-5 with Opus+Context"
+    fi
+
+    # Width 40 → ≤ 5 lines, model still present, P2 Weekly bar dropped
+    _out40=$(printf '%s' "$_fixture" | \
+        env -u COLUMNS CLAUDE_STATUSLINE_COLS=40 \
+        bash "$_sl_main" 2>/dev/null)
+    _lines40=$(printf '%s\n' "$_out40" | grep -c .)
+    if [ "$_lines40" -ge 1 ] && [ "$_lines40" -le 5 ] \
+       && printf '%s' "$_out40" | grep -q 'Opus'; then
+        ok "width=40 renders $_lines40 line(s) within max-5 cap, model present"
+    else
+        fail "width=40 produced $_lines40 line(s); expected 1-5 with Opus"
+    fi
+    if printf '%s' "$_out40" | grep -q 'Weekly'; then
+        fail "width=40 still shows P2 'Weekly' bar (drop logic broken)"
+    else
+        ok "width=40 drops the P2 Weekly bar"
+    fi
 fi
 echo ""
 
