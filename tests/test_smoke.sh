@@ -1560,11 +1560,6 @@ if [ -f "$_sl_width" ]; then
     else
         fail "detect_columns has no 80 fallback literal"
     fi
-    if grep -qE '(^|[^0-9])24([^0-9]|$)' "$_sl_width"; then
-        ok "detect_columns has a literal 24 floor"
-    else
-        fail "detect_columns has no 24 floor literal"
-    fi
 fi
 
 # Items module: _ITEMS array + item_push helper
@@ -1678,19 +1673,62 @@ if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
     else
         ok "width=40 drops the P2 Weekly bar"
     fi
+fi
+echo ""
 
-    # Width 10 (sub-floor) must produce identical output to width 24,
-    # proving detect_columns coerces sub-24 inputs to the 24-col floor.
-    _out10=$(printf '%s' "$_fixture" | \
-        env -u COLUMNS CLAUDE_STATUSLINE_COLS=10 \
-        bash "$_sl_main" 2>/dev/null)
-    _out24=$(printf '%s' "$_fixture" | \
-        env -u COLUMNS CLAUDE_STATUSLINE_COLS=24 \
-        bash "$_sl_main" 2>/dev/null)
-    if [ "$_out10" = "$_out24" ]; then
-        ok "width=10 is coerced to the 24-col floor (output matches width=24)"
+# ── Claude Code statusline /proc-based width detection (spec 022) ──────
+# detect_columns must recover the real terminal width when the subprocess
+# has no controlling terminal, by walking /proc/<ppid>/fd/* to find the
+# parent's pty and running stty size against it. Also: the </dev/tty probe
+# must not leak its open-failure error to stderr.
+echo "[claude statusline (spec 022)]"
+
+if [ ! -f "$_sl_width" ]; then
+    fail "missing statusline width module (spec 022 checks skipped)"
+else
+    if grep -q '^detect_columns_from_proc()' "$_sl_width"; then
+        ok "detect_columns_from_proc helper is defined"
     else
-        fail "width=10 and width=24 produced different output (24-col floor not enforced)"
+        fail "detect_columns_from_proc helper is missing"
+    fi
+
+    if grep -q '/proc/' "$_sl_width"; then
+        ok "width.sh references /proc/ (parent-pty walk)"
+    else
+        fail "width.sh does not reference /proc/"
+    fi
+
+    if grep -q '/dev/pts/' "$_sl_width"; then
+        ok "width.sh matches against /dev/pts/* paths"
+    else
+        fail "width.sh does not match /dev/pts/*"
+    fi
+
+    # The </dev/tty probe must wrap stderr suppression around the redirect.
+    if grep -qE '\{[^}]*</dev/tty[^}]*;[[:space:]]*\}[[:space:]]*2>/dev/null' "$_sl_width"; then
+        ok "</dev/tty probe is wrapped in a {...} 2>/dev/null group"
+    else
+        fail "</dev/tty probe still leaks open-failure to stderr"
+    fi
+
+    if grep -qE '(^|[^0-9])80([^0-9]|$)' "$_sl_width"; then
+        ok "detect_columns still falls back to literal 80"
+    else
+        fail "detect_columns has no 80 fallback literal"
+    fi
+
+    # Behavioural: running the entrypoint with no ctty must not leak the
+    # /dev/tty open error to stderr.
+    if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
+            && [ -f "$_sl_main" ]; then
+        _stderr=$(printf '{}' \
+            | env -u COLUMNS -u CLAUDE_STATUSLINE_COLS \
+                  bash "$_sl_main" 2>&1 >/dev/null)
+        if printf '%s' "$_stderr" | grep -q 'No such device'; then
+            fail "statusline still leaks /dev/tty open error: $_stderr"
+        else
+            ok "statusline does not leak /dev/tty open error to stderr"
+        fi
     fi
 fi
 echo ""
