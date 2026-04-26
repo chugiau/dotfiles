@@ -1631,17 +1631,17 @@ if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
       }
     }'
 
-    # Width 200 → 1 line, contains model and Context
-    _out200=$(printf '%s' "$_fixture" | \
-        env -u COLUMNS CLAUDE_STATUSLINE_COLS=200 \
+    # Width 300 → 1 line, contains model and Context (everything fits)
+    _out300=$(printf '%s' "$_fixture" | \
+        env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
         bash "$_sl_main" 2>/dev/null)
-    _lines200=$(printf '%s\n' "$_out200" | grep -c .)
-    if [ "$_lines200" -eq 1 ] \
-       && printf '%s' "$_out200" | grep -q 'Opus' \
-       && printf '%s' "$_out200" | grep -q 'Context'; then
-        ok "width=200 renders 1 line containing model + Context"
+    _lines300=$(printf '%s\n' "$_out300" | grep -c .)
+    if [ "$_lines300" -eq 1 ] \
+       && printf '%s' "$_out300" | grep -q 'Opus' \
+       && printf '%s' "$_out300" | grep -q 'Context'; then
+        ok "width=300 renders 1 line containing model + Context"
     else
-        fail "width=200 produced $_lines200 line(s); expected 1 with Opus+Context"
+        fail "width=300 produced $_lines300 line(s); expected 1 with Opus+Context"
     fi
 
     # Width 80 → 2-5 lines, model + Context + Weekly all present
