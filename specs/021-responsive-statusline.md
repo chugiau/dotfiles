@@ -108,6 +108,15 @@ positive integer from this chain:
    not assume a wide screen, wide enough to render the P0 + P1 set in
    2 lines without truncation).
 
+The result is then clamped to a minimum of `24` columns. 24 is the
+minimum acceptable rendering width: the P0 `ctx_bar` (21 cols) fits
+on its own line with margin and `model` (≈ 9 cols) fits with `↵`
+breaks. Real terminals reporting sub-24 widths — or a buggy probe
+returning `1` — get a sane multi-line layout instead of nonsense
+zero-width truncation. The clamp applies uniformly to every path in
+the chain, including the env overrides, so the contract is "the
+packer never sees a width below 24".
+
 ### Packer
 
 `layout_pack <width> <max_lines>` (with `max_lines = 5`) walks the
@@ -153,7 +162,11 @@ applies ANSI-aware truncation when an item or final line exceeds
   - The five module files exist and parse with `bash -n`:
     `home/dot_claude/statusline/{core,data,width,items,layout}.sh`.
   - `detect_columns` is defined in `statusline/width.sh` and the
-    fallback literal `80` appears in its body.
+    fallback literal `80` and the floor literal `24` both appear in
+    its body.
+  - With `CLAUDE_STATUSLINE_COLS=10`, the rendered output is
+    byte-identical to the output at `CLAUDE_STATUSLINE_COLS=24` —
+    proving the floor coerces sub-24 inputs.
   - `_ITEMS` array and `item_push` helper are defined in
     `statusline/items.sh`.
   - `layout_pack` and `layout_render` are defined in

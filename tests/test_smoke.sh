@@ -1560,6 +1560,11 @@ if [ -f "$_sl_width" ]; then
     else
         fail "detect_columns has no 80 fallback literal"
     fi
+    if grep -qE '(^|[^0-9])24([^0-9]|$)' "$_sl_width"; then
+        ok "detect_columns has a literal 24 floor"
+    else
+        fail "detect_columns has no 24 floor literal"
+    fi
 fi
 
 # Items module: _ITEMS array + item_push helper
@@ -1672,6 +1677,20 @@ if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
         fail "width=40 still shows P2 'Weekly' bar (drop logic broken)"
     else
         ok "width=40 drops the P2 Weekly bar"
+    fi
+
+    # Width 10 (sub-floor) must produce identical output to width 24,
+    # proving detect_columns coerces sub-24 inputs to the 24-col floor.
+    _out10=$(printf '%s' "$_fixture" | \
+        env -u COLUMNS CLAUDE_STATUSLINE_COLS=10 \
+        bash "$_sl_main" 2>/dev/null)
+    _out24=$(printf '%s' "$_fixture" | \
+        env -u COLUMNS CLAUDE_STATUSLINE_COLS=24 \
+        bash "$_sl_main" 2>/dev/null)
+    if [ "$_out10" = "$_out24" ]; then
+        ok "width=10 is coerced to the 24-col floor (output matches width=24)"
+    else
+        fail "width=10 and width=24 produced different output (24-col floor not enforced)"
     fi
 fi
 echo ""
