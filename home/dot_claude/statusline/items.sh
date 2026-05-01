@@ -304,11 +304,64 @@ emit_session_mins() {
   item_push "session_mins" "${label}" "${w}" 3
 }
 
+# ✦ effort:<level> — colour-coded reasoning-effort setting.
+emit_effort() {
+  [[ -z "${effort_level}" ]] && return
+  local color
+  case "${effort_level}" in
+    low)          color="${GREEN}"   ;;
+    medium)       color="${YELLOW}"  ;;
+    high)         color="${ORANGE}"  ;;
+    xhigh|max)    color="${RED}"     ;;
+    *)            color="${RESET}"   ;;
+  esac
+  local label="✦ effort:${color}${effort_level}${RESET}"
+  # ✦ (2) + " effort:" (8) + level
+  local w=$(( 2 + 8 + ${#effort_level} ))
+  item_push "effort" "${label}" "${w}" 2
+}
+
+# ✎ <output_style_name> — active output style, suppressed for "default".
+emit_output_style() {
+  [[ -z "${output_style_name}" ]] && return
+  [[ "$(printf '%s' "${output_style_name}" | tr '[:upper:]' '[:lower:]')" == "default" ]] && return
+  local label="✎ ${output_style_name}"
+  # ✎ (2) + " " (1) + name
+  local w=$(( 2 + 1 + ${#output_style_name} ))
+  item_push "output_style" "${label}" "${w}" 3
+}
+
+# 💭 thinking — shown only when extended thinking is enabled.
+emit_thinking() {
+  [[ "${thinking_enabled}" != "true" ]] && return
+  local label="💭 thinking"
+  # 💭 (2) + " thinking" (9)
+  local w=$(( 2 + 9 ))
+  item_push "thinking" "${label}" "${w}" 3
+}
+
+# VIM:<mode> — vim-editor mode badge; bold + colour by mode.
+emit_vim_mode() {
+  [[ -z "${vim_mode}" ]] && return
+  local color
+  case "${vim_mode}" in
+    INSERT)              color="${GREEN}"   ;;
+    NORMAL)              color="${YELLOW}"  ;;
+    VISUAL|VISUAL\ LINE) color="${MAGENTA}" ;;
+    *)                   color="${RESET}"   ;;
+  esac
+  local label="${BOLD}${color}VIM:${vim_mode}${RESET}"
+  # "VIM:" (4) + mode
+  local w=$(( 4 + ${#vim_mode} ))
+  item_push "vim_mode" "${label}" "${w}" 1
+}
+
 # emit_all — invoked by the entrypoint after data has been populated.
 # Calls every emit_* in canonical left-to-right order. Drops are the
 # layout module's job; this list defines the ordering only.
 emit_all() {
   emit_model
+  emit_vim_mode
   emit_folder
   emit_worktree
   emit_branch
@@ -324,6 +377,9 @@ emit_all() {
   emit_five_hour
   emit_seven_day
   emit_version
+  emit_effort
+  emit_output_style
+  emit_thinking
   emit_claude_md
   emit_hooks
   emit_cache_pct

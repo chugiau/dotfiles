@@ -32,6 +32,11 @@ extract_fields() {
   total_duration_ms=$(echo "${input}"     | jq -r '.cost.total_duration_ms // empty')
   total_api_duration_ms=$(echo "${input}" | jq -r '.cost.total_api_duration_ms // empty')
   total_cost=$(echo "${input}"            | jq -r '.cost.total_cost_usd // empty')
+
+  effort_level=$(echo "${input}"       | jq -r '.effort.level // empty')
+  output_style_name=$(echo "${input}"  | jq -r '.output_style.name // empty')
+  thinking_enabled=$(echo "${input}"   | jq -r '.thinking.enabled // empty')
+  vim_mode=$(echo "${input}"           | jq -r '.vim.mode // empty')
 }
 
 # file_mtime <path> — modification time as Unix epoch (Linux + macOS/BSD).

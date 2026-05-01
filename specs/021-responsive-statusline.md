@@ -80,13 +80,16 @@ statusline receives `columns`). The renderer detects width itself via
 
 ### Items emitted (in canonical left-to-right order)
 
-`model` (P0) · `folder` (P1) · `worktree` (P1, when present) ·
+`model` (P0) · `vim_mode` (P1, when present) · `folder` (P1) ·
+`worktree` (P1, when present) ·
 `branch` (P1, when present) · `ahead_behind` (P2) · `git_staged` (P2) ·
 `git_modified` (P2) · `git_untracked` (P3) · `git_lines` (P3) ·
 `total_tokens` (P1) · `subagents` (P3, when count>0) ·
 `ctx_bar` (P0) · `ctx_pct` (P1) ·
 `five_hour` (P2, when present) · `seven_day` (P2, when present) ·
 `version` (P2) ·
+`effort` (P2, when present) · `output_style` (P3, when non-default) ·
+`thinking` (P3, when enabled) ·
 `claude_md` (P3) · `hooks` (P3) ·
 `cache_pct` (P3, when current_usage present) ·
 `in_out` (P3, when current_usage present) ·
@@ -94,6 +97,8 @@ statusline receives `columns`). The renderer detects width itself via
 `active_time` (P3, when non-zero) ·
 `api_duration` (P3, when non-zero) ·
 `session_mins` (P3, when >0).
+
+*(`vim_mode`, `effort`, `output_style`, `thinking` added by spec 023.)*
 
 ### Width detection
 
@@ -107,15 +112,6 @@ positive integer from this chain:
 5. Literal `80` (the spec's chosen fallback — narrow enough that we do
    not assume a wide screen, wide enough to render the P0 + P1 set in
    2 lines without truncation).
-
-The result is then clamped to a minimum of `24` columns. 24 is the
-minimum acceptable rendering width: the P0 `ctx_bar` (21 cols) fits
-on its own line with margin and `model` (≈ 9 cols) fits with `↵`
-breaks. Real terminals reporting sub-24 widths — or a buggy probe
-returning `1` — get a sane multi-line layout instead of nonsense
-zero-width truncation. The clamp applies uniformly to every path in
-the chain, including the env overrides, so the contract is "the
-packer never sees a width below 24".
 
 ### Packer
 
@@ -162,11 +158,7 @@ applies ANSI-aware truncation when an item or final line exceeds
   - The five module files exist and parse with `bash -n`:
     `home/dot_claude/statusline/{core,data,width,items,layout}.sh`.
   - `detect_columns` is defined in `statusline/width.sh` and the
-    fallback literal `80` and the floor literal `24` both appear in
-    its body.
-  - With `CLAUDE_STATUSLINE_COLS=10`, the rendered output is
-    byte-identical to the output at `CLAUDE_STATUSLINE_COLS=24` —
-    proving the floor coerces sub-24 inputs.
+    fallback literal `80` appears in its body.
   - `_ITEMS` array and `item_push` helper are defined in
     `statusline/items.sh`.
   - `layout_pack` and `layout_render` are defined in

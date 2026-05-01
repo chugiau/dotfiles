@@ -1733,6 +1733,148 @@ else
 fi
 echo ""
 
+# ── Claude Code statusline extra session-state items (spec 023) ────────────
+echo "[claude statusline (spec 023)]"
+
+if [ ! -f "$_sl_data" ] || [ ! -f "$_sl_items" ]; then
+    fail "missing statusline modules (spec 023 checks skipped)"
+else
+    # Structural: extract_fields reads the four new payload fields
+    for field in '.effort.level' '.output_style.name' '.thinking.enabled' '.vim.mode'; do
+        if grep -qF "${field}" "$_sl_data"; then
+            ok "extract_fields reads ${field} (data.sh)"
+        else
+            fail "extract_fields does not read ${field} (data.sh)"
+        fi
+    done
+
+    # Structural: four new emit_* functions are defined
+    for fn in emit_effort emit_output_style emit_thinking emit_vim_mode; do
+        if grep -q "^${fn}()" "$_sl_items"; then
+            ok "${fn} is defined (items.sh)"
+        else
+            fail "${fn} is missing from items.sh"
+        fi
+    done
+
+    # Structural: emit_effort references the ✦ symbol
+    if grep -q '✦' "$_sl_items"; then
+        ok "emit_effort references the ✦ symbol (items.sh)"
+    else
+        fail "emit_effort does not reference the ✦ symbol (items.sh)"
+    fi
+
+    # Structural: emit_vim_mode references VIM: prefix
+    if grep -q 'VIM:' "$_sl_items"; then
+        ok "emit_vim_mode references VIM: prefix (items.sh)"
+    else
+        fail "emit_vim_mode does not reference VIM: prefix (items.sh)"
+    fi
+
+    # Structural: emit_all calls all four new emitters
+    for fn in emit_effort emit_output_style emit_thinking emit_vim_mode; do
+        if awk '/^emit_all\(\)/,/^}/' "$_sl_items" | grep -q "${fn}"; then
+            ok "emit_all calls ${fn}"
+        else
+            fail "emit_all does not call ${fn}"
+        fi
+    done
+
+    # Behavioural: all four fields visible when all are set and width=300
+    if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
+            && [ -f "$_sl_main" ]; then
+        _fix_full='{
+          "model": {"id":"claude-opus-4-7","display_name":"Opus"},
+          "workspace": {"current_dir":"/tmp","project_dir":"/tmp"},
+          "cwd": "/tmp",
+          "session_id": "spec023-test-full",
+          "transcript_path": "/dev/null",
+          "version": "2.1.90",
+          "effort": {"level":"xhigh"},
+          "output_style": {"name":"Explanatory"},
+          "thinking": {"enabled":true},
+          "vim": {"mode":"INSERT"},
+          "context_window": {
+            "total_input_tokens": 5000,
+            "total_output_tokens": 1000,
+            "used_percentage": 10
+          }
+        }'
+        _out_full=$(printf '%s' "$_fix_full" | \
+            env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
+            bash "$_sl_main" 2>/dev/null)
+        for want in 'effort:xhigh' 'Explanatory' 'thinking' 'VIM:INSERT'; do
+            if printf '%s' "$_out_full" | grep -qF "$want"; then
+                ok "width=300 full fixture: output contains '$want'"
+            else
+                fail "width=300 full fixture: output missing '$want' (got: $(printf '%s' "$_out_full" | tr -d '\033' | tr -s ' '))"
+            fi
+        done
+
+        # effort:low present, thinking and VIM absent when not set
+        _fix_partial='{
+          "model": {"id":"claude-opus-4-7","display_name":"Opus"},
+          "workspace": {"current_dir":"/tmp","project_dir":"/tmp"},
+          "cwd": "/tmp",
+          "session_id": "spec023-test-partial",
+          "transcript_path": "/dev/null",
+          "version": "2.1.90",
+          "effort": {"level":"low"},
+          "thinking": {"enabled":false},
+          "context_window": {
+            "total_input_tokens": 5000,
+            "total_output_tokens": 1000,
+            "used_percentage": 10
+          }
+        }'
+        _out_partial=$(printf '%s' "$_fix_partial" | \
+            env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
+            bash "$_sl_main" 2>/dev/null)
+        if printf '%s' "$_out_partial" | grep -qF 'effort:low'; then
+            ok "partial fixture: output contains 'effort:low'"
+        else
+            fail "partial fixture: output missing 'effort:low'"
+        fi
+        if printf '%s' "$_out_partial" | grep -q 'thinking'; then
+            fail "partial fixture: output unexpectedly contains 'thinking' when disabled"
+        else
+            ok "partial fixture: 'thinking' absent when thinking.enabled=false"
+        fi
+        if printf '%s' "$_out_partial" | grep -q 'VIM:'; then
+            fail "partial fixture: output unexpectedly contains 'VIM:' when vim absent"
+        else
+            ok "partial fixture: 'VIM:' absent when vim field missing"
+        fi
+
+        # output_style=default must be suppressed
+        _fix_default_style='{
+          "model": {"id":"claude-opus-4-7","display_name":"Opus"},
+          "workspace": {"current_dir":"/tmp","project_dir":"/tmp"},
+          "cwd": "/tmp",
+          "session_id": "spec023-test-default-style",
+          "transcript_path": "/dev/null",
+          "version": "2.1.90",
+          "output_style": {"name":"default"},
+          "context_window": {
+            "total_input_tokens": 5000,
+            "total_output_tokens": 1000,
+            "used_percentage": 10
+          }
+        }'
+        _out_dstyle=$(printf '%s' "$_fix_default_style" | \
+            env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
+            bash "$_sl_main" 2>/dev/null)
+        # The style emitter must be silent for "default"; we check the
+        # ✎ glyph does not appear (it is only used by emit_output_style).
+        if printf '%s' "$_out_dstyle" | grep -q '✎'; then
+            fail "default style: output unexpectedly shows ✎ for output_style=default"
+        else
+            ok "default style: ✎ suppressed when output_style.name=default"
+        fi
+    fi
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
