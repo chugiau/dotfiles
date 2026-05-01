@@ -149,9 +149,9 @@ pct_color() {
   if [[ "${pct}" -ge 90 ]]; then
     printf "%s" "${RED}"
   elif [[ "${pct}" -ge 80 ]]; then
-    printf "%s" "${YELLOW}"
-  elif [[ "${pct}" -ge 40 ]]; then
     printf "%s" "${ORANGE}"
+  elif [[ "${pct}" -ge 40 ]]; then
+    printf "%s" "${YELLOW}"
   else
     printf "%s" "${GREEN}"
   fi
