@@ -139,6 +139,42 @@ check_no_bashisms "bootstrap.sh"
 check_no_bashisms "bin/dotfiles"
 echo ""
 
+# ── Bootstrap apt diagnostics (spec 024) ───────────────────────────────────
+echo "[bootstrap apt diagnostics]"
+_bootstrap="$SCRIPT_DIR/bootstrap.sh"
+if grep -q 'Updating apt package indexes' "$_bootstrap"; then
+    ok "bootstrap logs apt index refresh before apt-get update"
+else
+    fail "bootstrap does not log apt index refresh before apt-get update"
+fi
+if grep -nE 'apt-get[[:space:]]+update([[:space:]].*)?-qq' "$_bootstrap" >/dev/null 2>&1; then
+    fail "bootstrap still runs apt-get update in quiet mode"
+else
+    ok "bootstrap does not run apt-get update in quiet mode"
+fi
+if grep -q 'Acquire::http::Timeout' "$_bootstrap" \
+   && grep -q 'Acquire::https::Timeout' "$_bootstrap"; then
+    ok "bootstrap configures apt acquire timeouts"
+else
+    fail "bootstrap does not configure apt acquire timeouts"
+fi
+if grep -q 'Acquire::Retries' "$_bootstrap"; then
+    ok "bootstrap configures apt acquire retries"
+else
+    fail "bootstrap does not configure apt acquire retries"
+fi
+if grep -q 'APT::Update::Error-Mode=any' "$_bootstrap"; then
+    ok "bootstrap treats failed apt sources as update failures"
+else
+    fail "bootstrap does not treat failed apt sources as update failures"
+fi
+if grep -q 'broken apt source' "$_bootstrap"; then
+    ok "bootstrap explains apt update failure likely source"
+else
+    fail "bootstrap apt update failure diagnostic does not mention broken apt source"
+fi
+echo ""
+
 # ── Ansible absence ─────────────────────────────────────────────────────────
 echo "[ansible removed]"
 for leftover in ansible.cfg inventory site.yml install.sh \
