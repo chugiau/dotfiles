@@ -30,6 +30,8 @@ set -eu
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 DOTFILES_REPO_URL="${DOTFILES_REPO_URL:-https://github.com/AbandonedScope/dotfiles.git}"
 BIN_DIR="$HOME/.local/bin"
+APT_ACQUIRE_TIMEOUT_SECONDS="${APT_ACQUIRE_TIMEOUT_SECONDS:-20}"
+APT_ACQUIRE_RETRIES="${APT_ACQUIRE_RETRIES:-1}"
 
 # ── logging ────────────────────────────────────────────────────────────────
 
@@ -55,6 +57,21 @@ maybe_sudo() {
         sudo "$@"
     else
         die "Need root or sudo to run: $*"
+    fi
+}
+
+apt_get_update() {
+    log_info "Updating apt package indexes..."
+    log_info "apt network fetch timeout=${APT_ACQUIRE_TIMEOUT_SECONDS}s retries=$APT_ACQUIRE_RETRIES"
+    log_info "If this fails or pauses, inspect the repository URL printed by apt; PPAs are common culprits."
+
+    if ! maybe_sudo apt-get update \
+        -o "Acquire::http::Timeout=$APT_ACQUIRE_TIMEOUT_SECONDS" \
+        -o "Acquire::https::Timeout=$APT_ACQUIRE_TIMEOUT_SECONDS" \
+        -o "Acquire::Retries=$APT_ACQUIRE_RETRIES" \
+        -o "APT::Update::Error-Mode=any"
+    then
+        die "apt-get update failed. Inspect the repository URL printed above, disable the broken apt source, then re-run bootstrap."
     fi
 }
 
@@ -106,7 +123,7 @@ install_prereqs() {
 
     case "$DISTRO" in
         ubuntu|debian|pop|linuxmint)
-            maybe_sudo apt-get update -qq
+            apt_get_update
             maybe_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
                 curl git ca-certificates
             ;;
