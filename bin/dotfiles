@@ -7,6 +7,7 @@
 #   dotfiles link            Re-apply chezmoi (re-create managed files)
 #   dotfiles check           Dry-run (chezmoi diff)
 #   dotfiles doctor          Verify expected tools and runtime trees are present
+#   dotfiles test            Run smoke, Bats, and optional static checks
 #   dotfiles secrets-init    Generate the age key and wire chezmoi.toml for encryption
 #   dotfiles edit            Open the dotfiles repo in $EDITOR
 
@@ -18,6 +19,7 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
 log_ok()   { printf '  \033[0;32mok\033[0m    %s\n' "$*"; }
 log_fail() { printf '  \033[0;31mfail\033[0m  %s\n' "$*"; }
+log_skip() { printf '  \033[0;33mskip\033[0m  %s\n' "$*"; }
 has()      { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
@@ -30,6 +32,7 @@ Commands:
   link             Re-apply chezmoi (re-create managed files / symlinks)
   check            Dry-run (chezmoi diff)
   doctor           Verify expected tools and runtime trees
+  test             Run smoke, Bats, and optional static checks
   secrets-init     Generate the age key and wire chezmoi.toml for encryption
   edit             Open the dotfiles repo in $EDITOR
 
@@ -37,6 +40,7 @@ Examples:
   dotfiles install
   dotfiles update
   dotfiles doctor
+  dotfiles test
   dotfiles secrets-init
 EOF
 }
@@ -87,6 +91,117 @@ cmd_check() {
 
 cmd_edit() {
     "${EDITOR:-nvim}" "$DOTFILES_DIR"
+}
+
+cmd_test() {
+    test_fail=0
+
+    echo "[smoke]"
+    if sh "$DOTFILES_DIR/tests/test_smoke.sh"; then
+        log_ok "POSIX smoke tests passed"
+    else
+        log_fail "POSIX smoke tests failed"
+        test_fail=1
+    fi
+    echo ""
+
+    echo "[bats]"
+    if has bats; then
+        if (cd "$DOTFILES_DIR" && bats tests/bats); then
+            log_ok "Bats suite passed"
+        else
+            log_fail "Bats suite failed"
+            test_fail=1
+        fi
+    else
+        log_skip "bats not found — skipping Bats suite (run: mise install)"
+    fi
+    echo ""
+
+    echo "[parse]"
+    if sh -n "$DOTFILES_DIR/bootstrap.sh" \
+        && sh -n "$DOTFILES_DIR/bin/dotfiles" \
+        && sh -n "$DOTFILES_DIR/tests/test_smoke.sh"; then
+        log_ok "POSIX shell scripts parse"
+    else
+        log_fail "POSIX shell parse failed"
+        test_fail=1
+    fi
+
+    if has bash; then
+        if bash -n "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
+            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \
+            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/data.sh" \
+            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/width.sh" \
+            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/items.sh" \
+            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/layout.sh"; then
+            log_ok "Bash statusline scripts parse"
+        else
+            log_fail "Bash statusline parse failed"
+            test_fail=1
+        fi
+    else
+        log_skip "bash not found — skipping Bash parse checks"
+    fi
+
+    if has zsh; then
+        if zsh -n "$DOTFILES_DIR/home/dot_zprofile" \
+            && zsh -n "$DOTFILES_DIR/home/dot_zshrc" \
+            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/completions.zsh" \
+            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/pkg-quarantine.zsh" \
+            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"; then
+            log_ok "zsh profiles and modules parse"
+        else
+            log_fail "zsh parse failed"
+            test_fail=1
+        fi
+    else
+        log_skip "zsh not found — skipping zsh parse checks"
+    fi
+    echo ""
+
+    echo "[static]"
+    if has shellcheck; then
+        if shellcheck \
+            "$DOTFILES_DIR/bootstrap.sh" \
+            "$DOTFILES_DIR/bin/dotfiles" \
+            "$DOTFILES_DIR/tests/test_smoke.sh" \
+            "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/data.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/width.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/items.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/layout.sh"; then
+            log_ok "shellcheck passed"
+        else
+            log_fail "shellcheck failed"
+            test_fail=1
+        fi
+    else
+        log_skip "shellcheck not found — skipping shellcheck"
+    fi
+
+    if has shfmt; then
+        if shfmt -d \
+            "$DOTFILES_DIR/bootstrap.sh" \
+            "$DOTFILES_DIR/bin/dotfiles" \
+            "$DOTFILES_DIR/tests/test_smoke.sh" \
+            "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/data.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/width.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/items.sh" \
+            "$DOTFILES_DIR/home/dot_claude/statusline/layout.sh"; then
+            log_ok "shfmt passed"
+        else
+            log_fail "shfmt failed"
+            test_fail=1
+        fi
+    else
+        log_skip "shfmt not found — skipping shfmt"
+    fi
+
+    [ "$test_fail" -eq 0 ]
 }
 
 # Generate the age identity used by chezmoi for file encryption and
@@ -236,6 +351,7 @@ case "${1:-}" in
     link)          cmd_link ;;
     check)         shift; cmd_check "$@" ;;
     doctor)        cmd_doctor ;;
+    test)          cmd_test ;;
     secrets-init)  cmd_secrets_init ;;
     edit)          cmd_edit ;;
     -h|--help|help|'') usage ;;

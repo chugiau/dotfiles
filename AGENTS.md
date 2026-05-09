@@ -22,6 +22,7 @@ dotfiles update       # chezmoi update + mise upgrade + omz + p10k + nvim plugin
 dotfiles link         # Re-apply chezmoi (re-create managed files)
 dotfiles check        # Dry-run (chezmoi diff)
 dotfiles doctor       # Health check
+dotfiles test         # Smoke + Bats + optional static checks
 ```
 
 ## Architecture
@@ -36,6 +37,7 @@ dotfiles doctor       # Health check
 - **`home/run_once_*.sh.tmpl`** — chezmoi setup scripts (system packages, mise install, oh-my-zsh + p10k, NvChad, git hooks, chsh).
 - **`bin/dotfiles`** — POSIX sh CLI wrapper around chezmoi + mise, including `secrets-init` for age setup.
 - **`tests/test_smoke.sh`** — POSIX sh structural tests + chezmoi template render checks.
+- **`tests/bats/`** — Bats behaviour/integration tests for shell commands and hooks.
 
 ## Environment variables
 
@@ -84,6 +86,13 @@ The pre-commit hook at `home/dot_config/dotfiles/hooks/executable_pre-commit` bl
 
 ```sh
 sh tests/test_smoke.sh                  # Structural + template-render smoke tests
+bats tests/bats                         # Behaviour tests (after mise install)
+dotfiles test                           # Full local test entrypoint
 chezmoi apply --dry-run --verbose       # Dry-run: show every change chezmoi would make
 dotfiles check                          # Same as above via the wrapper
 ```
+
+Bats is the primary behaviour/integration test runner. It does not prove POSIX
+or zsh portability because Bats tests run under Bash, so pair Bats coverage
+with explicit parse/static gates (`sh -n`, rendered chezmoi templates, `zsh -n`,
+ShellCheck, and shfmt when available).

@@ -29,6 +29,7 @@ dotfiles update           # Update chezmoi, mise tools, omz, p10k, nvim plugins
 dotfiles link             # Re-apply chezmoi (re-create managed files)
 dotfiles check            # Dry-run — preview what chezmoi would change
 dotfiles doctor           # Verify all tools are present
+dotfiles test             # Run smoke, Bats, and optional static checks
 dotfiles edit             # Open the repo in $EDITOR
 ```
 
@@ -39,7 +40,7 @@ dotfiles edit             # Open the repo in $EDITOR
 | Layer | Managed by | Contents |
 |---|---|---|
 | **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, openssh, curl, wget, build tools |
-| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, codex, direnv |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, codex, direnv, bats |
 | **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
 | **Shell autocomplete** | system PM + run_onchange | `bash-completion`, `zsh-syntax-highlighting`, `zsh-autosuggestions` from the distro PM; mise-tool completions generated into `~/.local/share/zsh/completions/` (spec 020) |
@@ -144,6 +145,7 @@ gh      = "latest"
 glab    = "latest"
 codex   = "latest"
 direnv  = "latest"
+bats    = "latest"
 ```
 
 > `direnv` is wired into zsh via a hook in `home/dot_zshrc` that runs
@@ -228,8 +230,15 @@ Runs in order:
 ## Testing
 
 ```sh
-# Structural smoke tests (POSIX sh, no dependencies beyond chezmoi if present)
+# Full local test entrypoint. Runs smoke first, then Bats when installed,
+# then optional parse/static gates when their tools are on PATH.
+dotfiles test
+
+# Structural smoke tests (POSIX sh, no Bats dependency; chezmoi is optional)
 sh tests/test_smoke.sh
+
+# Behaviour tests for shell commands and hooks
+bats tests/bats
 
 # Dry-run on your machine — shows what chezmoi would change, changes nothing
 dotfiles check
@@ -238,6 +247,12 @@ chezmoi apply --dry-run --verbose
 ```
 
 `tests/test_smoke.sh` verifies: the source tree layout, POSIX-sh parseability of `bootstrap.sh` and `bin/dotfiles`, bashism absence, Ansible absence, and (if `chezmoi` is on PATH) that every `run_*.sh.tmpl` renders without Go-template errors.
+
+Bats is the primary behaviour/integration test runner for shell scripts in
+this repo. It is intentionally paired with explicit portability gates because
+Bats tests run under Bash: keep using `sh -n`, rendered-template parse checks,
+`zsh -n`, ShellCheck, and shfmt to catch portability and syntax issues outside
+the Bats execution model.
 
 ## Adding a Tool
 
