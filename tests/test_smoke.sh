@@ -75,6 +75,7 @@ check_exists "bin/dotfiles"
 check_exists "README.md"
 check_exists "CLAUDE.md"
 check_exists "AGENTS.md"
+check_exists "tests/bats/dotfiles_cli.bats"
 for f in .editorconfig .gitattributes .gitignore; do
     if [ -s "$SCRIPT_DIR/$f" ]; then
         ok "non-empty: $f"
@@ -333,6 +334,17 @@ if awk '
 else
     fail "mise config does not declare ripgrep under [tools]"
 fi
+# bats must be declared as a mise-managed test tool (spec 025).  The
+# registry name is "bats" even though the upstream project is Bats-core.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*bats[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares bats under [tools]"
+else
+    fail "mise config does not declare bats under [tools] (spec 025)"
+fi
 # bin/dotfiles doctor must check for node so a missing install surfaces
 # directly rather than as a cryptic downstream LSP / hook failure.
 if grep -qE '^[[:space:]]*for cmd in[^;]*[[:space:]]node[[:space:]]' "$SCRIPT_DIR/bin/dotfiles"; then
@@ -366,6 +378,42 @@ if grep -q 'mise doctor' "$SCRIPT_DIR/bin/dotfiles"; then
     ok "bin/dotfiles install runs mise doctor"
 else
     fail "bin/dotfiles install does not run mise doctor"
+fi
+echo ""
+
+# ── Bats test framework (spec 025) ─────────────────────────────────────────
+echo "[bats test framework]"
+if grep -qE '^[[:space:]]*test\)' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles exposes a test subcommand"
+else
+    fail "bin/dotfiles does not expose a test subcommand"
+fi
+if grep -q 'tests/test_smoke.sh' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles test runs the POSIX smoke test"
+else
+    fail "bin/dotfiles test does not run tests/test_smoke.sh"
+fi
+if grep -q 'bats tests/bats' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "bin/dotfiles test runs the Bats suite"
+else
+    fail "bin/dotfiles test does not run bats tests/bats"
+fi
+if grep -q 'Bats' "$SCRIPT_DIR/README.md" \
+   && grep -q 'dotfiles test' "$SCRIPT_DIR/README.md"; then
+    ok "README.md documents Bats and dotfiles test"
+else
+    fail "README.md does not document Bats and dotfiles test"
+fi
+if grep -q 'Bats' "$SCRIPT_DIR/AGENTS.md" \
+   && grep -q 'dotfiles test' "$SCRIPT_DIR/AGENTS.md"; then
+    ok "AGENTS.md documents Bats and dotfiles test"
+else
+    fail "AGENTS.md does not document Bats and dotfiles test"
+fi
+if grep -q '@test ' "$SCRIPT_DIR/tests/bats/dotfiles_cli.bats"; then
+    ok "Bats suite contains executable test cases"
+else
+    fail "Bats suite does not contain executable test cases"
 fi
 echo ""
 
