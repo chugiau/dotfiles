@@ -27,6 +27,10 @@ unlocks for a bounded, reasonable period.
 - The shell exports `SSH_ASKPASS` and `SSH_ASKPASS_REQUIRE=prefer` when a GUI
   session and an installed askpass helper are present, without overwriting an
   existing explicit `SSH_ASKPASS`.
+- The same askpass helper is exported as `SUDO_ASKPASS` when available, without
+  overwriting an existing explicit `SUDO_ASKPASS`, so commands that opt into
+  sudo askpass via `sudo -A` can use the same GUI unlock path and sudo's own
+  timestamp cache.
 - `ssh-agent` starts with a four hour default identity lifetime so unlocked SSH
   keys are cached but do not live indefinitely.
 - SSH client configuration is updated non-destructively: existing
