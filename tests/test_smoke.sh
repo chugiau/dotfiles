@@ -350,6 +350,28 @@ if awk '
 else
     fail "mise config does not declare bats under [tools] (spec 025)"
 fi
+# ShellCheck must be declared as a mise-managed static analysis tool
+# (spec 027) so `dotfiles test` runs the lint gate after setup.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*shellcheck[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares shellcheck under [tools]"
+else
+    fail "mise config does not declare shellcheck under [tools] (spec 027)"
+fi
+# shfmt must be declared for the same test-toolchain reason as ShellCheck;
+# the static gate is already wired into bin/dotfiles.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*shfmt[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares shfmt under [tools]"
+else
+    fail "mise config does not declare shfmt under [tools] (spec 027)"
+fi
 # bin/dotfiles doctor must check for node so a missing install surfaces
 # directly rather than as a cryptic downstream LSP / hook failure.
 if grep -qE '^[[:space:]]*for cmd in[^;]*[[:space:]]node[[:space:]]' "$SCRIPT_DIR/bin/dotfiles"; then
