@@ -126,6 +126,7 @@ check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
 check_exists "home/run_onchange_after_40-git-hooks.sh.tmpl"
 check_exists "home/run_onchange_after_41-ssh-config-auth.sh.tmpl"
+check_exists "home/run_onchange_after_42-gpg-agent-auth.sh.tmpl"
 check_exists "home/run_once_after_50-default-shell.sh.tmpl"
 check_exists "home/run_onchange_after_60-claude-statusline.sh.tmpl"
 check_exists "home/run_onchange_after_61-claude-env.sh.tmpl"
@@ -1161,6 +1162,7 @@ _authmod="$SCRIPT_DIR/home/dot_config/dotfiles/modules/auth-unlock.zsh"
 _sshagent="$SCRIPT_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"
 _pinentry="$SCRIPT_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto"
 _gpgagent="$SCRIPT_DIR/home/private_dot_gnupg/gpg-agent.conf.tmpl"
+_gpgagent_auth="$SCRIPT_DIR/home/run_onchange_after_42-gpg-agent-auth.sh.tmpl"
 _sshconfig_auth="$SCRIPT_DIR/home/run_onchange_after_41-ssh-config-auth.sh.tmpl"
 _zshrc="$SCRIPT_DIR/home/dot_zshrc"
 _dotfiles_cli="$SCRIPT_DIR/bin/dotfiles"
@@ -1227,6 +1229,15 @@ if [ -f "$_gpgagent" ]; then
         ok "gpg-agent config uses managed pinentry-auto"
     else
         fail "gpg-agent config does not use managed pinentry-auto"
+    fi
+fi
+
+if [ -f "$_gpgagent_auth" ]; then
+    if grep -q 'private_dot_gnupg/gpg-agent.conf.tmpl' "$_gpgagent_auth" \
+       && grep -q 'gpgconf --kill gpg-agent' "$_gpgagent_auth"; then
+        ok "gpg-agent auth script restarts agent after config changes"
+    else
+        fail "gpg-agent auth script does not restart agent after config changes"
     fi
 fi
 
