@@ -9,8 +9,11 @@ _auth_unlock_has_gui() {
 
 _auth_unlock_pick_ssh_askpass() {
   if [[ -n "${SSH_ASKPASS:-}" ]]; then
-    [[ -x "$SSH_ASKPASS" ]]
-    return
+    if [[ -x "$SSH_ASKPASS" ]]; then
+      _auth_unlock_askpass="$SSH_ASKPASS"
+      return 0
+    fi
+    return 1
   fi
 
   local askpass
@@ -25,6 +28,7 @@ _auth_unlock_pick_ssh_askpass() {
     /usr/local/bin/ssh-askpass; do
     if [[ -x "$askpass" ]]; then
       export SSH_ASKPASS="$askpass"
+      _auth_unlock_askpass="$askpass"
       return 0
     fi
   done
@@ -34,7 +38,11 @@ _auth_unlock_pick_ssh_askpass() {
 
 if _auth_unlock_has_gui && _auth_unlock_pick_ssh_askpass; then
   export SSH_ASKPASS_REQUIRE="prefer"
+  if [[ -z "${SUDO_ASKPASS:-}" ]]; then
+    export SUDO_ASKPASS="$_auth_unlock_askpass"
+  fi
 fi
+unset _auth_unlock_askpass
 
 if command -v tty >/dev/null 2>&1; then
   _auth_unlock_tty="$(tty 2>/dev/null || true)"

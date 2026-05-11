@@ -151,6 +151,8 @@ shell startup:
 - SSH gets `SSH_ASKPASS` plus `SSH_ASKPASS_REQUIRE=prefer` when a GUI session
   and askpass helper are present, without replacing an explicitly configured
   `SSH_ASKPASS`.
+- The same helper is exported as `SUDO_ASKPASS` when unset, so commands that
+  deliberately use `sudo -A` can use the GUI prompt and sudo's timestamp cache.
 - `ssh-agent` starts with a four hour default identity lifetime. A
   non-destructive `run_onchange` script appends a managed trailing
   `Host *` block to `~/.ssh/config` with `AddKeysToAgent yes`, preserving
