@@ -1179,6 +1179,11 @@ if [ -f "$_authmod" ]; then
     else
         fail "auth-unlock does not configure SSH askpass prefer mode"
     fi
+    if grep -q 'SUDO_ASKPASS=' "$_authmod"; then
+        ok "auth-unlock configures sudo askpass"
+    else
+        fail "auth-unlock does not configure sudo askpass"
+    fi
     if grep -q 'DISPLAY' "$_authmod" && grep -q 'WAYLAND_DISPLAY' "$_authmod"; then
         ok "auth-unlock detects graphical sessions"
     else
