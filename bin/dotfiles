@@ -122,6 +122,7 @@ cmd_test() {
     if sh -n "$DOTFILES_DIR/bootstrap.sh" &&
         sh -n "$DOTFILES_DIR/bin/dotfiles" &&
         sh -n "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" &&
+        sh -n "$DOTFILES_DIR/home/dot_claude/hooks/executable_sensitive-file-guard.sh" &&
         sh -n "$DOTFILES_DIR/tests/test_smoke.sh"; then
         log_ok "POSIX shell scripts parse"
     else
@@ -168,6 +169,7 @@ cmd_test() {
             "$DOTFILES_DIR/bootstrap.sh" \
             "$DOTFILES_DIR/bin/dotfiles" \
             "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" \
+            "$DOTFILES_DIR/home/dot_claude/hooks/executable_sensitive-file-guard.sh" \
             "$DOTFILES_DIR/tests/test_smoke.sh" \
             "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
             "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \
@@ -189,6 +191,7 @@ cmd_test() {
             "$DOTFILES_DIR/bootstrap.sh" \
             "$DOTFILES_DIR/bin/dotfiles" \
             "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" \
+            "$DOTFILES_DIR/home/dot_claude/hooks/executable_sensitive-file-guard.sh" \
             "$DOTFILES_DIR/tests/test_smoke.sh" \
             "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
             "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \

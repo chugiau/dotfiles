@@ -814,6 +814,12 @@ else
     fail "missing Claude sensitive-file guard hook"
 fi
 
+if grep -q 'executable_sensitive-file-guard.sh' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "dotfiles test includes the Claude sensitive-file guard"
+else
+    fail "dotfiles test does not include the Claude sensitive-file guard"
+fi
+
 if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
     [ -f "$_security_tmpl" ]; then
     _stage="${TMPDIR:-/tmp}/dotfiles-claude-security.$$"

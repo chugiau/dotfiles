@@ -78,7 +78,9 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── dot_tmux.conf                  # → ~/.tmux.conf
     │
     ├── dot_claude/
-    │   └── executable_statusline-command.sh   # → ~/.claude/statusline-command.sh
+    │   ├── executable_statusline-command.sh   # → ~/.claude/statusline-command.sh
+    │   └── hooks/
+    │       └── executable_sensitive-file-guard.sh # → ~/.claude/hooks/sensitive-file-guard.sh
     │
     ├── dot_config/
     │   ├── mise/config.toml                   # → ~/.config/mise/config.toml
@@ -105,7 +107,10 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit
     ├── run_onchange_after_41-ssh-config-auth.sh.tmpl # append SSH auth defaults
     ├── run_onchange_after_42-gpg-agent-auth.sh.tmpl # restart gpg-agent on config change
-    └── run_once_after_50-default-shell.sh.tmpl     # chsh -s zsh
+    ├── run_once_after_50-default-shell.sh.tmpl     # chsh -s zsh
+    ├── run_onchange_after_60-claude-statusline.sh.tmpl # wire Claude statusline
+    ├── run_onchange_after_61-claude-env.sh.tmpl    # wire Claude-scoped env
+    └── run_onchange_after_62-claude-security.sh.tmpl # wire Claude file guard
 ```
 
 ## How It Works
@@ -239,6 +244,8 @@ GITHUB_TOKEN={{ (bitwardenFields "item" "gh pat dotfiles").token.value }}
 The repo holds only the template — no ciphertext, no cleartext. Every `chezmoi apply` refreshes the rendered file by pulling live from Bitwarden. Install the `bw` CLI (`npm install -g @bitwarden/cli` or system package) and run `bw login && bw unlock` before applying. Chezmoi also supports `onepassword`, `pass`, `keepassxc`, `keyring`, and more — see [chezmoi password managers](https://www.chezmoi.io/user-guide/password-managers/).
 
 **Pre-commit guard.** `home/dot_config/dotfiles/hooks/executable_pre-commit` (installed as the repo's own `.git/hooks/pre-commit` by `run_onchange_after_40-git-hooks.sh.tmpl`) blocks any plaintext `*.env` file that is neither `encrypted_` prefixed nor a `.env.tmpl` template, rejects staged age private keys (`key.txt`, `*.age`), and scans the staged diff for common provider token patterns (GitLab, GitHub PAT/OAuth/App, OpenAI, AWS, Slack).
+
+**Claude Code runtime guard.** `home/run_onchange_after_62-claude-security.sh.tmpl` merges a fail-closed runtime policy into `~/.claude/settings.json`: `permissions.deny` hides `~/.ssh/**` and env-like files, `permissions.disableBypassPermissionsMode = "disable"` blocks dangerous permission bypass mode, and `sandbox.enabled` + `sandbox.failIfUnavailable` prevent Bash from silently running without filesystem isolation. The managed `~/.claude/hooks/sensitive-file-guard.sh` also runs on `UserPromptSubmit` and `PreToolUse`, blocking direct references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the sensitive path in the block reason.
 
 ## Post-Install Manual Steps
 

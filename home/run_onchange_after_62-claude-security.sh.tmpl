@@ -1,0 +1,89 @@
+#!/bin/sh
+# Merge Claude Code sensitive-file guard policy into ~/.claude/settings.json.
+#
+# The managed hook blocks direct prompt references before Claude processes
+# the prompt. Permission deny rules make sensitive files invisible to built-in
+# file tools, and sandbox fail-closed mode prevents Bash from silently running
+# without filesystem isolation.
+
+set -eu
+
+log() { printf '\033[0;34m[claude-security]\033[0m %s\n' "$*"; }
+
+SETTINGS="$HOME/.claude/settings.json"
+HOOK="$HOME/.claude/hooks/sensitive-file-guard.sh"
+
+if ! command -v jq >/dev/null 2>&1; then
+    log "jq not found — skipping (install jq, then re-run 'chezmoi apply')."
+    exit 0
+fi
+
+mkdir -p "$(dirname "$SETTINGS")"
+[ -f "$SETTINGS" ] || printf '{}\n' >"$SETTINGS"
+
+DENY_RULES='[
+  "Read(~/.ssh/**)",
+  "Read(~/.env)",
+  "Read(~/.env.*)",
+  "Read(.env)",
+  "Read(.env.*)",
+  "Read(./.env)",
+  "Read(./.env.*)",
+  "Read(**/.env)",
+  "Read(**/.env.*)",
+  "Read(**/*.env)",
+  "Read(**/*.env.*)",
+  "Read(.envrc)",
+  "Read(./.envrc)",
+  "Read(**/.envrc)",
+  "Read(**/*.envrc)"
+]'
+
+tmp=$(mktemp "${SETTINGS}.XXXXXX")
+trap 'rm -f "$tmp"' EXIT INT TERM
+
+jq --argjson deny "$DENY_RULES" --arg hook "$HOOK" '
+def append_unique($items):
+  reduce $items[] as $item (.;
+    if index($item) then . else . + [$item] end
+  );
+
+def command_hook($cmd):
+  {"type": "command", "command": $cmd, "timeout": 5};
+
+def prompt_entry($cmd):
+  {"hooks": [command_hook($cmd)]};
+
+def pretool_entry($cmd):
+  {
+    "matcher": "Read|Glob|Grep|Bash|Edit|MultiEdit|Write|Agent",
+    "hooks": [command_hook($cmd)]
+  };
+
+.permissions = ((.permissions // {}) |
+  .deny = ((.deny // []) | append_unique($deny)) |
+  .disableBypassPermissionsMode = "disable"
+) |
+.sandbox = ((.sandbox // {}) + {
+  "enabled": true,
+  "failIfUnavailable": true
+}) |
+.hooks = (.hooks // {}) |
+.hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) |
+  append_unique([prompt_entry($hook)])
+) |
+.hooks.PreToolUse = ((.hooks.PreToolUse // []) |
+  append_unique([pretool_entry($hook)])
+)
+' "$SETTINGS" >"$tmp"
+
+if cmp -s "$SETTINGS" "$tmp"; then
+    rm -f "$tmp"
+    trap - EXIT INT TERM
+    exit 0
+fi
+
+mv "$tmp" "$SETTINGS"
+trap - EXIT INT TERM
+
+log "wired Claude sensitive-file guard"

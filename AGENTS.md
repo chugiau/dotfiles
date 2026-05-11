@@ -34,6 +34,9 @@ dotfiles test         # Smoke + Bats + optional static checks
 - **`home/dot_config/dotfiles/`** — runtime tree deployed by chezmoi:
   - `modules/*.zsh` — shell modules sourced by zshrc (alias, functions, fzf, pkg-quarantine, ssh-agent)
   - `hooks/pre-commit` — source for the repo's own git pre-commit hook (blocks plaintext env files, age keys, and leaked provider tokens)
+- **`home/dot_claude/`** — Claude Code runtime assets:
+  - `statusline-command.sh` and `statusline/` — managed statusline
+  - `hooks/sensitive-file-guard.sh` — blocks prompt/tool references to `~/.ssh/` and env-like files before Claude processes or executes them
 - **`home/run_once_*.sh.tmpl`** — chezmoi setup scripts (system packages, mise install, oh-my-zsh + p10k, NvChad, git hooks, chsh).
 - **`bin/dotfiles`** — POSIX sh CLI wrapper around chezmoi + mise, including `secrets-init` for age setup.
 - **`tests/test_smoke.sh`** — POSIX sh structural tests + chezmoi template render checks.
@@ -59,7 +62,12 @@ Ordering uses numeric prefixes:
 | `run_once_after_20-ohmyzsh.sh.tmpl`          | after apply  | once                               |
 | `run_once_after_30-nvchad.sh.tmpl`           | after apply  | once                               |
 | `run_onchange_after_40-git-hooks.sh.tmpl`    | after apply  | whenever hook content hash changes |
+| `run_onchange_after_41-ssh-config-auth.sh.tmpl` | after apply | whenever ssh-agent module hash changes |
+| `run_onchange_after_42-gpg-agent-auth.sh.tmpl` | after apply | whenever gpg-agent config hash changes |
 | `run_once_after_50-default-shell.sh.tmpl`    | after apply  | once                               |
+| `run_onchange_after_60-claude-statusline.sh.tmpl` | after apply | whenever statusline wireup changes |
+| `run_onchange_after_61-claude-env.sh.tmpl`   | after apply  | whenever Claude env wireup changes |
+| `run_onchange_after_62-claude-security.sh.tmpl` | after apply | whenever Claude sensitive-file policy changes |
 
 Go templates dispatch on `.chezmoi.os` (`darwin` / `linux`) and `.chezmoi.osRelease.id` (`ubuntu` / `debian` / `arch` / `fedora` / …).
 
@@ -81,6 +89,8 @@ Two chezmoi-native routes, no bespoke loader:
 - **Bitwarden (or other password managers) via templates.** A `*.env.tmpl` file can call chezmoi's built-in `{{ bitwardenFields "item" "name" }}` (or `onepassword`, `pass`, `keyring`, …) at apply time. Nothing secret lives in the repo — chezmoi refetches on every `apply`. Requires the chosen CLI to be installed and unlocked.
 
 The pre-commit hook at `home/dot_config/dotfiles/hooks/executable_pre-commit` blocks staged plaintext `*.env` (unless the path has `encrypted_` or the file ends `.env.tmpl`), age private keys (`key.txt`, `*.age`), and a bank of provider-token regexes.
+
+The Claude Code runtime guard at `home/dot_claude/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the matched path. `home/run_onchange_after_62-claude-security.sh.tmpl` wires that hook into `UserPromptSubmit` and `PreToolUse`, adds matching `permissions.deny` entries, disables bypass permissions mode, and enables fail-closed sandboxing so Bash cannot silently read denied paths without filesystem isolation.
 
 ## Testing
 
