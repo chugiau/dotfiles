@@ -40,7 +40,7 @@ dotfiles edit             # Open the repo in $EDITOR
 | Layer | Managed by | Contents |
 |---|---|---|
 | **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, pinentry, openssh, ssh-askpass, curl, wget, build tools |
-| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, codex, direnv, bats |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, codex, direnv, bats, ShellCheck, shfmt |
 | **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
 | **Shell autocomplete** | system PM + run_onchange | `bash-completion`, `zsh-syntax-highlighting`, `zsh-autosuggestions` from the distro PM; mise-tool completions generated into `~/.local/share/zsh/completions/` (spec 020) |
@@ -185,6 +185,8 @@ glab    = "latest"
 codex   = "latest"
 direnv  = "latest"
 bats    = "latest"
+shellcheck = "latest"
+shfmt      = "latest"
 ```
 
 > `direnv` is wired into zsh via a hook in `home/dot_zshrc` that runs
