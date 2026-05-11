@@ -108,9 +108,13 @@ check_exists "home/dot_config/direnv/direnv.toml"
 check_exists "home/dot_config/dotfiles/modules/empty_alias.zsh"
 check_exists "home/dot_config/dotfiles/modules/empty_functions.zsh"
 check_exists "home/dot_config/dotfiles/modules/empty_fzf.zsh"
+check_exists "home/dot_config/dotfiles/modules/auth-unlock.zsh"
 check_exists "home/dot_config/dotfiles/modules/pkg-quarantine.zsh"
 check_exists "home/dot_config/dotfiles/modules/ssh-agent.zsh"
+check_exists "home/dot_config/dotfiles/bin/executable_pinentry-auto"
 check_exists "home/dot_config/dotfiles/hooks/executable_pre-commit"
+check_exists "home/private_dot_gnupg/gpg-agent.conf.tmpl"
+check_exists "home/private_dot_ssh/config"
 check_exists "home/dot_claude/executable_statusline-command.sh"
 echo ""
 
@@ -1148,6 +1152,126 @@ if [ -f "$_syspkgs" ]; then
     else
         fail "system-packages does not guard wslu install on /proc/version microsoft"
     fi
+fi
+echo ""
+
+# ── Spec 026: terminal auth unlock prompts ─────────────────────────────────
+echo "[spec 026 — terminal auth unlock prompts]"
+_authmod="$SCRIPT_DIR/home/dot_config/dotfiles/modules/auth-unlock.zsh"
+_sshagent="$SCRIPT_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"
+_pinentry="$SCRIPT_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto"
+_gpgagent="$SCRIPT_DIR/home/private_dot_gnupg/gpg-agent.conf.tmpl"
+_sshconfig="$SCRIPT_DIR/home/private_dot_ssh/config"
+_zshrc="$SCRIPT_DIR/home/dot_zshrc"
+_dotfiles_cli="$SCRIPT_DIR/bin/dotfiles"
+_readme="$SCRIPT_DIR/README.md"
+
+if [ -f "$_authmod" ]; then
+    if grep -q 'export GPG_TTY=' "$_authmod" \
+       && grep -q 'gpg-connect-agent updatestartuptty /bye' "$_authmod"; then
+        ok "auth-unlock exports GPG_TTY and refreshes gpg-agent TTY"
+    else
+        fail "auth-unlock does not wire GPG_TTY and gpg-agent TTY refresh"
+    fi
+    if grep -q 'SSH_ASKPASS_REQUIRE="prefer"' "$_authmod" \
+       && grep -q 'SSH_ASKPASS=' "$_authmod"; then
+        ok "auth-unlock configures SSH askpass prefer mode"
+    else
+        fail "auth-unlock does not configure SSH askpass prefer mode"
+    fi
+    if grep -q 'DISPLAY' "$_authmod" && grep -q 'WAYLAND_DISPLAY' "$_authmod"; then
+        ok "auth-unlock detects graphical sessions"
+    else
+        fail "auth-unlock does not check graphical session variables"
+    fi
+fi
+
+if [ -f "$_sshagent" ]; then
+    if grep -q 'DOTFILES_SSH_AGENT_TTL' "$_sshagent" \
+       && grep -q 'ssh-agent -t "$_ssh_agent_ttl" -s' "$_sshagent"; then
+        ok "ssh-agent starts with bounded identity lifetime"
+    else
+        fail "ssh-agent does not start with a bounded identity lifetime"
+    fi
+fi
+
+if [ -f "$_pinentry" ]; then
+    if sh -n "$_pinentry" 2>/dev/null; then
+        ok "pinentry-auto parses under sh -n"
+    else
+        fail "pinentry-auto does not parse under sh -n"
+        sh -n "$_pinentry" >&2 || true
+    fi
+    if grep -q 'pinentry-gnome3' "$_pinentry" \
+       && grep -q 'pinentry-curses' "$_pinentry" \
+       && grep -q 'pinentry-tty' "$_pinentry"; then
+        ok "pinentry-auto includes GUI and terminal fallback candidates"
+    else
+        fail "pinentry-auto is missing GUI or terminal pinentry candidates"
+    fi
+fi
+
+if [ -f "$_gpgagent" ]; then
+    if grep -q '^default-cache-ttl 3600$' "$_gpgagent" \
+       && grep -q '^max-cache-ttl 14400$' "$_gpgagent"; then
+        ok "gpg-agent config sets one-hour/four-hour cache TTLs"
+    else
+        fail "gpg-agent config does not set expected cache TTLs"
+    fi
+    if grep -q 'pinentry-program {{ .chezmoi.homeDir }}/.config/dotfiles/bin/pinentry-auto' "$_gpgagent"; then
+        ok "gpg-agent config uses managed pinentry-auto"
+    else
+        fail "gpg-agent config does not use managed pinentry-auto"
+    fi
+fi
+
+if [ -f "$_sshconfig" ]; then
+    if grep -q '^Host \*$' "$_sshconfig" \
+       && grep -q '^[[:space:]]*AddKeysToAgent yes$' "$_sshconfig"; then
+        ok "ssh config enables AddKeysToAgent globally"
+    else
+        fail "ssh config does not enable AddKeysToAgent globally"
+    fi
+fi
+
+if [ -f "$_zshrc" ]; then
+    if awk '
+        /source "\$DOTFILES\/modules\/ssh-agent.zsh"/ { ssh_agent = NR }
+        /source "\$DOTFILES\/modules\/auth-unlock.zsh"/ { auth_unlock = NR }
+        /p10k-instant-prompt/ && !p10k { p10k = NR }
+        END {
+            exit(ssh_agent && auth_unlock && p10k && ssh_agent < auth_unlock && auth_unlock < p10k ? 0 : 1)
+        }
+    ' "$_zshrc"; then
+        ok "dot_zshrc sources auth-unlock after ssh-agent and before p10k"
+    else
+        fail "dot_zshrc does not source auth-unlock in the required order"
+    fi
+fi
+
+if [ -f "$_syspkgs" ]; then
+    for pkg in pinentry-gnome3 pinentry-curses ssh-askpass-gnome pinentry-mac ksshaskpass openssh-askpass; do
+        if grep -q "$pkg" "$_syspkgs"; then
+            ok "system packages reference $pkg"
+        else
+            fail "system packages do not reference $pkg"
+        fi
+    done
+fi
+
+if grep -q 'auth-unlock.zsh' "$_dotfiles_cli" \
+   && grep -q 'executable_pinentry-auto' "$_dotfiles_cli"; then
+    ok "dotfiles test parses auth-unlock and pinentry-auto"
+else
+    fail "dotfiles test does not parse auth-unlock and pinentry-auto"
+fi
+
+if grep -q 'pinentry-auto' "$_readme" \
+   && grep -q 'four hour' "$_readme" \
+   && grep -q 'SSH_ASKPASS_REQUIRE=prefer' "$_readme"; then
+    ok "README documents terminal auth unlock behavior"
+else
+    fail "README does not document terminal auth unlock behavior"
 fi
 echo ""
 
