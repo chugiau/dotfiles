@@ -21,6 +21,9 @@ unlocks for a bounded, reasonable period.
   terminals or panes.
 - GPG agent configuration uses a managed `pinentry-auto` wrapper and sets a
   bounded cache: one hour default TTL and four hour maximum TTL.
+- Changes to the managed GPG agent configuration cause an existing `gpg-agent`
+  to restart on the next use, so new pinentry and cache settings take effect
+  without requiring a manual logout.
 - The `pinentry-auto` wrapper chooses GUI pinentry programs first when `DISPLAY`
   or `WAYLAND_DISPLAY` is present, including the WSLg case, and falls back to
   curses/TTY pinentry programs when no GUI is available.
@@ -60,6 +63,7 @@ unlocks for a bounded, reasonable period.
 - `home/dot_config/dotfiles/bin/executable_pinentry-auto` (new)
 - `home/private_dot_gnupg/gpg-agent.conf.tmpl` (new)
 - `home/run_onchange_after_41-ssh-config-auth.sh.tmpl` (new)
+- `home/run_onchange_after_42-gpg-agent-auth.sh.tmpl` (new)
 - `home/dot_zshrc`
 - `home/run_once_before_10-system-packages.sh.tmpl`
 - `bin/dotfiles`
