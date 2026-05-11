@@ -114,7 +114,6 @@ check_exists "home/dot_config/dotfiles/modules/ssh-agent.zsh"
 check_exists "home/dot_config/dotfiles/bin/executable_pinentry-auto"
 check_exists "home/dot_config/dotfiles/hooks/executable_pre-commit"
 check_exists "home/private_dot_gnupg/gpg-agent.conf.tmpl"
-check_exists "home/private_dot_ssh/config"
 check_exists "home/dot_claude/executable_statusline-command.sh"
 echo ""
 
@@ -126,6 +125,7 @@ check_exists "home/run_onchange_after_15-neovim.sh.tmpl"
 check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
 check_exists "home/run_onchange_after_40-git-hooks.sh.tmpl"
+check_exists "home/run_onchange_after_41-ssh-config-auth.sh.tmpl"
 check_exists "home/run_once_after_50-default-shell.sh.tmpl"
 check_exists "home/run_onchange_after_60-claude-statusline.sh.tmpl"
 check_exists "home/run_onchange_after_61-claude-env.sh.tmpl"
@@ -1161,7 +1161,7 @@ _authmod="$SCRIPT_DIR/home/dot_config/dotfiles/modules/auth-unlock.zsh"
 _sshagent="$SCRIPT_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"
 _pinentry="$SCRIPT_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto"
 _gpgagent="$SCRIPT_DIR/home/private_dot_gnupg/gpg-agent.conf.tmpl"
-_sshconfig="$SCRIPT_DIR/home/private_dot_ssh/config"
+_sshconfig_auth="$SCRIPT_DIR/home/run_onchange_after_41-ssh-config-auth.sh.tmpl"
 _zshrc="$SCRIPT_DIR/home/dot_zshrc"
 _dotfiles_cli="$SCRIPT_DIR/bin/dotfiles"
 _readme="$SCRIPT_DIR/README.md"
@@ -1225,12 +1225,19 @@ if [ -f "$_gpgagent" ]; then
     fi
 fi
 
-if [ -f "$_sshconfig" ]; then
-    if grep -q '^Host \*$' "$_sshconfig" \
-       && grep -q '^[[:space:]]*AddKeysToAgent yes$' "$_sshconfig"; then
-        ok "ssh config enables AddKeysToAgent globally"
+if [ -f "$_sshconfig_auth" ]; then
+    if grep -q 'BEGIN dotfiles auth unlock' "$_sshconfig_auth" \
+       && grep -q '^Host \*$' "$_sshconfig_auth" \
+       && grep -q '^[[:space:]]*AddKeysToAgent yes$' "$_sshconfig_auth"; then
+        ok "ssh config auth script appends managed AddKeysToAgent block"
     else
-        fail "ssh config does not enable AddKeysToAgent globally"
+        fail "ssh config auth script does not append managed AddKeysToAgent block"
+    fi
+    if grep -q 'cat >>"\$ssh_config"' "$_sshconfig_auth" \
+       && grep -q 'chmod 600 "\$ssh_config"' "$_sshconfig_auth"; then
+        ok "ssh config auth script preserves existing config and fixes mode"
+    else
+        fail "ssh config auth script does not preserve existing config and mode"
     fi
 fi
 
@@ -2011,11 +2018,12 @@ else
         _out_full=$(printf '%s' "$_fix_full" | \
             env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
             bash "$_sl_main" 2>/dev/null)
+        _out_full_plain=$(printf '%s' "$_out_full" | sed 's/\x1b\[[0-9;]*m//g')
         for want in 'effort:xhigh' 'Explanatory' 'thinking' 'VIM:INSERT'; do
-            if printf '%s' "$_out_full" | grep -qF "$want"; then
+            if printf '%s' "$_out_full_plain" | grep -qF "$want"; then
                 ok "width=300 full fixture: output contains '$want'"
             else
-                fail "width=300 full fixture: output missing '$want' (got: $(printf '%s' "$_out_full" | tr -d '\033' | tr -s ' '))"
+                fail "width=300 full fixture: output missing '$want' (got: $(printf '%s' "$_out_full_plain" | tr -s ' '))"
             fi
         done
 
@@ -2038,17 +2046,18 @@ else
         _out_partial=$(printf '%s' "$_fix_partial" | \
             env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
             bash "$_sl_main" 2>/dev/null)
-        if printf '%s' "$_out_partial" | grep -qF 'effort:low'; then
+        _out_partial_plain=$(printf '%s' "$_out_partial" | sed 's/\x1b\[[0-9;]*m//g')
+        if printf '%s' "$_out_partial_plain" | grep -qF 'effort:low'; then
             ok "partial fixture: output contains 'effort:low'"
         else
             fail "partial fixture: output missing 'effort:low'"
         fi
-        if printf '%s' "$_out_partial" | grep -q 'thinking'; then
+        if printf '%s' "$_out_partial_plain" | grep -q 'thinking'; then
             fail "partial fixture: output unexpectedly contains 'thinking' when disabled"
         else
             ok "partial fixture: 'thinking' absent when thinking.enabled=false"
         fi
-        if printf '%s' "$_out_partial" | grep -q 'VIM:'; then
+        if printf '%s' "$_out_partial_plain" | grep -q 'VIM:'; then
             fail "partial fixture: output unexpectedly contains 'VIM:' when vim absent"
         else
             ok "partial fixture: 'VIM:' absent when vim field missing"
