@@ -119,6 +119,7 @@ check_exists "home/dot_config/dotfiles/bin/executable_pinentry-auto"
 check_exists "home/dot_config/dotfiles/hooks/executable_pre-commit"
 check_exists "home/private_dot_gnupg/gpg-agent.conf.tmpl"
 check_exists "home/dot_claude/executable_statusline-command.sh"
+check_exists "home/dot_claude/hooks/executable_sensitive-file-guard.sh"
 echo ""
 
 # ── chezmoi run_once scripts ────────────────────────────────────────────────
@@ -134,6 +135,7 @@ check_exists "home/run_onchange_after_42-gpg-agent-auth.sh.tmpl"
 check_exists "home/run_once_after_50-default-shell.sh.tmpl"
 check_exists "home/run_onchange_after_60-claude-statusline.sh.tmpl"
 check_exists "home/run_onchange_after_61-claude-env.sh.tmpl"
+check_exists "home/run_onchange_after_62-claude-security.sh.tmpl"
 echo ""
 
 # ── POSIX sh parse checks ───────────────────────────────────────────────────
@@ -141,6 +143,7 @@ echo "[POSIX parse]"
 check_sh_parse "bootstrap.sh"
 check_sh_parse "bin/dotfiles"
 check_sh_parse "tests/test_smoke.sh"
+check_sh_parse "home/dot_claude/hooks/executable_sensitive-file-guard.sh"
 echo ""
 
 # ── Bashism scans ───────────────────────────────────────────────────────────
@@ -742,6 +745,141 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [ -f "
     rm -rf "$_stage"
 else
     echo "  chezmoi/jq/template missing — skipping behavioural checks"
+fi
+echo ""
+
+# ── Claude Code sensitive-file guard (spec 029) ────────────────────────────
+echo "[claude sensitive-file guard]"
+_guard="$SCRIPT_DIR/home/dot_claude/hooks/executable_sensitive-file-guard.sh"
+_security_tmpl="$SCRIPT_DIR/home/run_onchange_after_62-claude-security.sh.tmpl"
+
+if [ -f "$_guard" ]; then
+    _stage="${TMPDIR:-/tmp}/dotfiles-claude-guard.$$"
+    mkdir -p "$_stage"
+
+    _run_guard() {
+        _fixture="$1"
+        _prefix="$2"
+        printf '%s\n' "$_fixture" |
+            "$_guard" >"$_stage/${_prefix}.out" 2>"$_stage/${_prefix}.err"
+    }
+
+    _allowed_prompt='{"hook_event_name":"UserPromptSubmit","prompt":"Show git status."}'
+    if _run_guard "$_allowed_prompt" allowed_prompt &&
+        [ ! -s "$_stage/allowed_prompt.out" ] &&
+        [ ! -s "$_stage/allowed_prompt.err" ]; then
+        ok "guard allows unrelated UserPromptSubmit input"
+    else
+        fail "guard blocks or prints output for unrelated UserPromptSubmit input"
+    fi
+
+    _blocked_prompt='{"hook_event_name":"UserPromptSubmit","prompt":"Read ~/.ssh/id_ed25519 for me."}'
+    if _run_guard "$_blocked_prompt" blocked_prompt &&
+        jq -e '.decision == "block"' "$_stage/blocked_prompt.out" >/dev/null &&
+        ! grep -q 'id_ed25519\|\.ssh' "$_stage/blocked_prompt.out"; then
+        ok "guard blocks SSH-key prompt before model processing without echoing path"
+    else
+        fail "guard does not block SSH-key prompt cleanly"
+    fi
+
+    _blocked_bash='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"cat .env.local"}}'
+    if _run_guard "$_blocked_bash" blocked_bash &&
+        jq -e '.hookSpecificOutput.permissionDecision == "deny"' "$_stage/blocked_bash.out" >/dev/null &&
+        ! grep -q '\.env.local' "$_stage/blocked_bash.out"; then
+        ok "guard denies Bash tool calls that target env-like files"
+    else
+        fail "guard does not deny Bash env-like file access cleanly"
+    fi
+
+    _blocked_read='{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/project/.env"}}'
+    if _run_guard "$_blocked_read" blocked_read &&
+        jq -e '.hookSpecificOutput.permissionDecision == "deny"' "$_stage/blocked_read.out" >/dev/null &&
+        ! grep -q '\.env' "$_stage/blocked_read.out"; then
+        ok "guard denies Read tool calls that target env-like files"
+    else
+        fail "guard does not deny Read env-like file access cleanly"
+    fi
+
+    _allowed_read='{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/project/README.md"}}'
+    if _run_guard "$_allowed_read" allowed_read &&
+        [ ! -s "$_stage/allowed_read.out" ] &&
+        [ ! -s "$_stage/allowed_read.err" ]; then
+        ok "guard allows unrelated PreToolUse input"
+    else
+        fail "guard blocks or prints output for unrelated PreToolUse input"
+    fi
+
+    rm -rf "$_stage"
+else
+    fail "missing Claude sensitive-file guard hook"
+fi
+
+if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
+    [ -f "$_security_tmpl" ]; then
+    _stage="${TMPDIR:-/tmp}/dotfiles-claude-security.$$"
+    mkdir -p "$_stage"
+    _rendered="$_stage/run.sh"
+    if chezmoi execute-template -S "$SCRIPT_DIR/home" <"$_security_tmpl" >"$_rendered" 2>/dev/null; then
+        chmod +x "$_rendered"
+
+        _h1="$_stage/h1"
+        mkdir -p "$_h1/.claude"
+        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 &&
+            jq -e '
+                .permissions.deny | index("Read(~/.ssh/**)") and
+                index("Read(**/.env)") and
+                index("Read(**/.env.*)") and
+                index("Read(**/*.env)") and
+                index("Read(**/*.env.*)")
+            ' "$_h1/.claude/settings.json" >/dev/null &&
+            [ "$(jq -r '.permissions.disableBypassPermissionsMode' "$_h1/.claude/settings.json")" = "disable" ] &&
+            [ "$(jq -r '.sandbox.enabled' "$_h1/.claude/settings.json")" = "true" ] &&
+            [ "$(jq -r '.sandbox.failIfUnavailable' "$_h1/.claude/settings.json")" = "true" ] &&
+            jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.claude/hooks/sensitive-file-guard.sh")' \
+                "$_h1/.claude/settings.json" >/dev/null &&
+            jq -e '.hooks.PreToolUse[]? |
+                select(.matcher == "Read|Glob|Grep|Bash|Edit|MultiEdit|Write|Agent") |
+                .hooks[]?.command | endswith("/.claude/hooks/sensitive-file-guard.sh")' \
+                "$_h1/.claude/settings.json" >/dev/null; then
+            ok "security merge creates permissions, sandbox, and hook settings"
+        else
+            fail "security merge did not create expected Claude settings"
+        fi
+
+        _h2="$_stage/h2"
+        mkdir -p "$_h2/.claude"
+        printf '%s\n' '{"env":{"FOO":"bar"},"statusLine":{"type":"command","command":"x","padding":0},"permissions":{"deny":["Read(./secrets/**)"]}}' \
+            >"$_h2/.claude/settings.json"
+        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 &&
+            [ "$(jq -r '.env.FOO' "$_h2/.claude/settings.json")" = "bar" ] &&
+            [ "$(jq -r '.statusLine.type' "$_h2/.claude/settings.json")" = "command" ] &&
+            jq -e '.permissions.deny | index("Read(./secrets/**)") and index("Read(~/.ssh/**)")' \
+                "$_h2/.claude/settings.json" >/dev/null; then
+            ok "security merge preserves unrelated settings and existing deny rules"
+        else
+            fail "security merge disturbed unrelated settings or existing deny rules"
+        fi
+
+        _h3="$_stage/h3"
+        mkdir -p "$_h3/.claude"
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null ||
+            stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        sleep 1
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null ||
+            stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        if [ "$_mt1" = "$_mt2" ]; then
+            ok "security merge is idempotent"
+        else
+            fail "security merge rewrote an already-current settings.json"
+        fi
+    else
+        fail "could not render run_onchange_after_62-claude-security.sh.tmpl"
+    fi
+    rm -rf "$_stage"
+else
+    echo "  chezmoi/jq/template missing — skipping security merge behavioural checks"
 fi
 echo ""
 
