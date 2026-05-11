@@ -29,8 +29,11 @@ unlocks for a bounded, reasonable period.
   existing explicit `SSH_ASKPASS`.
 - `ssh-agent` starts with a four hour default identity lifetime so unlocked SSH
   keys are cached but do not live indefinitely.
-- SSH client configuration enables `AddKeysToAgent yes` so passphrase-protected
-  keys unlocked by `ssh` are inserted into the running agent cache.
+- SSH client configuration is updated non-destructively: existing
+  user-managed `~/.ssh/config` host blocks are preserved, and a managed trailing
+  `Host *` block enables `AddKeysToAgent yes` so passphrase-protected keys
+  unlocked by `ssh` are inserted into the running agent cache when no earlier
+  host block overrides it.
 - System package bootstrap installs GUI and terminal pinentry/askpass helpers on
   supported package-manager branches where package names are available.
 - `dotfiles test` parses the new zsh module and executable helper.
@@ -43,8 +46,7 @@ unlocks for a bounded, reasonable period.
 - Enabling Git commit signing globally; the existing `commit.gpgSign = false`
   default remains unchanged.
 - Guaranteeing GUI prompts on machines with no GUI forwarding/session.
-- Managing custom per-host SSH identities beyond the global `AddKeysToAgent`
-  default.
+- Replacing or rewriting custom per-host SSH identities.
 
 ## Affected files
 
@@ -53,7 +55,7 @@ unlocks for a bounded, reasonable period.
 - `home/dot_config/dotfiles/modules/ssh-agent.zsh`
 - `home/dot_config/dotfiles/bin/executable_pinentry-auto` (new)
 - `home/private_dot_gnupg/gpg-agent.conf.tmpl` (new)
-- `home/private_dot_ssh/config` (new)
+- `home/run_onchange_after_41-ssh-config-auth.sh.tmpl` (new)
 - `home/dot_zshrc`
 - `home/run_once_before_10-system-packages.sh.tmpl`
 - `bin/dotfiles`
