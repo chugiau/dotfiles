@@ -16,25 +16,25 @@
 # column count on success, returns non-zero (and prints nothing) on
 # failure or on a non-/proc system.
 detect_columns_from_proc() {
-  [[ ! -d /proc ]] && return 1
-  local pid=$$ depth pts cols fd
-  for depth in 1 2 3 4 5 6 7 8; do
-    pid=$(ps -o ppid= -p "${pid}" 2>/dev/null | tr -d ' ')
-    [[ -z "${pid}" || "${pid}" -le 1 ]] && return 1
-    for fd in 0 1 2; do
-      pts=$(readlink "/proc/${pid}/fd/${fd}" 2>/dev/null)
-      case "${pts}" in
-        /dev/pts/*|/dev/tty[0-9]*)
-          cols=$( { stty size <"${pts}"; } 2>/dev/null | awk '{print $2}' )
-          if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
-            printf "%s" "${cols}"
-            return 0
-          fi
-          ;;
-      esac
+    [[ ! -d /proc ]] && return 1
+    local pid=$$ pts cols fd
+    for _ in 1 2 3 4 5 6 7 8; do
+        pid=$(ps -o ppid= -p "${pid}" 2>/dev/null | tr -d ' ')
+        [[ -z "${pid}" || "${pid}" -le 1 ]] && return 1
+        for fd in 0 1 2; do
+            pts=$(readlink "/proc/${pid}/fd/${fd}" 2>/dev/null)
+            case "${pts}" in
+            /dev/pts/* | /dev/tty[0-9]*)
+                cols=$({ stty size <"${pts}"; } 2>/dev/null | awk '{print $2}')
+                if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
+                    printf "%s" "${cols}"
+                    return 0
+                fi
+                ;;
+            esac
+        done
     done
-  done
-  return 1
+    return 1
 }
 
 # detect_columns — first non-zero positive integer in:
@@ -47,43 +47,43 @@ detect_columns_from_proc() {
 #   5. tput cols
 #   6. literal 80
 detect_columns() {
-  local cols
+    local cols
 
-  if [[ -n "${CLAUDE_STATUSLINE_COLS:-}" ]] \
-     && [[ "${CLAUDE_STATUSLINE_COLS}" =~ ^[0-9]+$ ]] \
-     && [[ "${CLAUDE_STATUSLINE_COLS}" -gt 0 ]]; then
-    printf "%s" "${CLAUDE_STATUSLINE_COLS}"
-    return
-  fi
+    if [[ -n "${CLAUDE_STATUSLINE_COLS:-}" ]] &&
+        [[ "${CLAUDE_STATUSLINE_COLS}" =~ ^[0-9]+$ ]] &&
+        [[ "${CLAUDE_STATUSLINE_COLS}" -gt 0 ]]; then
+        printf "%s" "${CLAUDE_STATUSLINE_COLS}"
+        return
+    fi
 
-  if [[ -n "${COLUMNS:-}" ]] \
-     && [[ "${COLUMNS}" =~ ^[0-9]+$ ]] \
-     && [[ "${COLUMNS}" -gt 0 ]]; then
-    printf "%s" "${COLUMNS}"
-    return
-  fi
+    if [[ -n "${COLUMNS:-}" ]] &&
+        [[ "${COLUMNS}" =~ ^[0-9]+$ ]] &&
+        [[ "${COLUMNS}" -gt 0 ]]; then
+        printf "%s" "${COLUMNS}"
+        return
+    fi
 
-  # Wrap in a `{ …; } 2>/dev/null` group: bash processes redirections
-  # left-to-right, so plain `</dev/tty 2>/dev/null` opens stdin first
-  # and leaks the "No such device" error to the original stderr before
-  # the 2>/dev/null takes effect.
-  cols=$( { stty size </dev/tty; } 2>/dev/null | awk '{print $2}' )
-  if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
-    printf "%s" "${cols}"
-    return
-  fi
+    # Wrap in a `{ …; } 2>/dev/null` group: bash processes redirections
+    # left-to-right, so plain `</dev/tty 2>/dev/null` opens stdin first
+    # and leaks the "No such device" error to the original stderr before
+    # the 2>/dev/null takes effect.
+    cols=$({ stty size </dev/tty; } 2>/dev/null | awk '{print $2}')
+    if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
+        printf "%s" "${cols}"
+        return
+    fi
 
-  cols=$(detect_columns_from_proc 2>/dev/null)
-  if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
-    printf "%s" "${cols}"
-    return
-  fi
+    cols=$(detect_columns_from_proc 2>/dev/null)
+    if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
+        printf "%s" "${cols}"
+        return
+    fi
 
-  cols=$(tput cols 2>/dev/null)
-  if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
-    printf "%s" "${cols}"
-    return
-  fi
+    cols=$(tput cols 2>/dev/null)
+    if [[ -n "${cols}" ]] && [[ "${cols}" =~ ^[0-9]+$ ]] && [[ "${cols}" -gt 0 ]]; then
+        printf "%s" "${cols}"
+        return
+    fi
 
-  printf "80"
+    printf "80"
 }

@@ -4,6 +4,10 @@
 # Verifies the repo structure and that the scripts are parseable.
 # Zero dependencies beyond POSIX sh + coreutils. Optionally uses chezmoi
 # when available for deeper verification.
+#
+# Many checks grep for literal shell snippets containing `$...`; single quotes
+# are intentional there.
+# shellcheck disable=SC2016
 
 set -eu
 
@@ -86,7 +90,7 @@ done
 
 # .chezmoiroot content check
 if [ -f "$SCRIPT_DIR/.chezmoiroot" ]; then
-    root_content="$(tr -d '[:space:]' < "$SCRIPT_DIR/.chezmoiroot")"
+    root_content="$(tr -d '[:space:]' <"$SCRIPT_DIR/.chezmoiroot")"
     if [ "$root_content" = "home" ]; then
         ok ".chezmoiroot points to 'home'"
     else
@@ -158,8 +162,8 @@ if grep -nE 'apt-get[[:space:]]+update([[:space:]].*)?-qq' "$_bootstrap" >/dev/n
 else
     ok "bootstrap does not run apt-get update in quiet mode"
 fi
-if grep -q 'Acquire::http::Timeout' "$_bootstrap" \
-   && grep -q 'Acquire::https::Timeout' "$_bootstrap"; then
+if grep -q 'Acquire::http::Timeout' "$_bootstrap" &&
+    grep -q 'Acquire::https::Timeout' "$_bootstrap"; then
     ok "bootstrap configures apt acquire timeouts"
 else
     fail "bootstrap does not configure apt acquire timeouts"
@@ -184,7 +188,7 @@ echo ""
 # ── Ansible absence ─────────────────────────────────────────────────────────
 echo "[ansible removed]"
 for leftover in ansible.cfg inventory site.yml install.sh \
-                roles pre_tasks group_vars ansible tests/molecule; do
+    roles pre_tasks group_vars ansible tests/molecule; do
     if [ -e "$SCRIPT_DIR/$leftover" ]; then
         fail "leftover: $leftover (should be removed)"
     else
@@ -208,7 +212,7 @@ if command -v chezmoi >/dev/null 2>&1; then
         [ -f "$tmpl" ] || continue
         name="$(basename "$tmpl")"
         rendered="$tmpdir/${name%.tmpl}"
-        if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" > "$rendered" 2>/dev/null; then
+        if chezmoi execute-template -S "$SCRIPT_DIR/home" <"$tmpl" >"$rendered" 2>/dev/null; then
             ok "template renders: $name"
             if sh -n "$rendered" 2>/dev/null; then
                 ok "rendered script parses: $name"
@@ -218,7 +222,7 @@ if command -v chezmoi >/dev/null 2>&1; then
             fi
         else
             fail "template renders: $name"
-            chezmoi execute-template -S "$SCRIPT_DIR/home" < "$tmpl" >&2 || true
+            chezmoi execute-template -S "$SCRIPT_DIR/home" <"$tmpl" >&2 || true
         fi
     done
 else
@@ -229,8 +233,8 @@ echo ""
 # ── Optional: mise config TOML parse ────────────────────────────────────────
 if command -v mise >/dev/null 2>&1; then
     echo "[mise]"
-    if mise config --file "$SCRIPT_DIR/home/dot_config/mise/config.toml" >/dev/null 2>&1 \
-       || mise ls --file "$SCRIPT_DIR/home/dot_config/mise/config.toml" >/dev/null 2>&1; then
+    if mise config --file "$SCRIPT_DIR/home/dot_config/mise/config.toml" >/dev/null 2>&1 ||
+        mise ls --file "$SCRIPT_DIR/home/dot_config/mise/config.toml" >/dev/null 2>&1; then
         ok "mise config parses"
     else
         # Fallback: just ensure the file is non-empty and contains [tools].
@@ -425,14 +429,14 @@ if grep -q 'bats tests/bats' "$SCRIPT_DIR/bin/dotfiles"; then
 else
     fail "bin/dotfiles test does not run bats tests/bats"
 fi
-if grep -q 'Bats' "$SCRIPT_DIR/README.md" \
-   && grep -q 'dotfiles test' "$SCRIPT_DIR/README.md"; then
+if grep -q 'Bats' "$SCRIPT_DIR/README.md" &&
+    grep -q 'dotfiles test' "$SCRIPT_DIR/README.md"; then
     ok "README.md documents Bats and dotfiles test"
 else
     fail "README.md does not document Bats and dotfiles test"
 fi
-if grep -q 'Bats' "$SCRIPT_DIR/AGENTS.md" \
-   && grep -q 'dotfiles test' "$SCRIPT_DIR/AGENTS.md"; then
+if grep -q 'Bats' "$SCRIPT_DIR/AGENTS.md" &&
+    grep -q 'dotfiles test' "$SCRIPT_DIR/AGENTS.md"; then
     ok "AGENTS.md documents Bats and dotfiles test"
 else
     fail "AGENTS.md does not document Bats and dotfiles test"
@@ -662,9 +666,9 @@ else
 fi
 # Stock oh-my-zsh commented boilerplate must be trimmed.
 for marker in CASE_SENSITIVE HYPHEN_INSENSITIVE DISABLE_MAGIC_FUNCTIONS \
-              DISABLE_LS_COLORS DISABLE_AUTO_TITLE ENABLE_CORRECTION \
-              COMPLETION_WAITING_DOTS DISABLE_UNTRACKED_FILES_DIRTY \
-              HIST_STAMPS ZSH_CUSTOM ZSH_THEME_RANDOM_CANDIDATES; do
+    DISABLE_LS_COLORS DISABLE_AUTO_TITLE ENABLE_CORRECTION \
+    COMPLETION_WAITING_DOTS DISABLE_UNTRACKED_FILES_DIRTY \
+    HIST_STAMPS ZSH_CUSTOM ZSH_THEME_RANDOM_CANDIDATES; do
     if grep -q "$marker" "$_zshrc"; then
         fail "dot_zshrc still carries stock oh-my-zsh boilerplate: $marker"
     else
@@ -688,15 +692,15 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [ -f "
     _stage="${TMPDIR:-/tmp}/dotfiles-claude-env.$$"
     mkdir -p "$_stage"
     _rendered="$_stage/run.sh"
-    if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_envtmpl" > "$_rendered" 2>/dev/null; then
+    if chezmoi execute-template -S "$SCRIPT_DIR/home" <"$_envtmpl" >"$_rendered" 2>/dev/null; then
         chmod +x "$_rendered"
 
         # Scenario 1: no settings.json — file is created with env.ENABLE_LSP_TOOL="1".
         _h1="$_stage/h1"
         mkdir -p "$_h1/.claude"
-        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 \
-           && [ -f "$_h1/.claude/settings.json" ] \
-           && [ "$(jq -r '.env.ENABLE_LSP_TOOL' "$_h1/.claude/settings.json")" = "1" ]; then
+        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 &&
+            [ -f "$_h1/.claude/settings.json" ] &&
+            [ "$(jq -r '.env.ENABLE_LSP_TOOL' "$_h1/.claude/settings.json")" = "1" ]; then
             ok "creates settings.json with env.ENABLE_LSP_TOOL when missing"
         else
             fail "did not create settings.json with env.ENABLE_LSP_TOOL when missing"
@@ -706,12 +710,12 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [ -f "
         _h2="$_stage/h2"
         mkdir -p "$_h2/.claude"
         printf '%s\n' '{"env":{"FOO":"bar"},"statusLine":{"type":"command","command":"x","padding":0},"autoMemoryEnabled":false}' \
-            > "$_h2/.claude/settings.json"
-        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 \
-           && [ "$(jq -r '.env.FOO'              "$_h2/.claude/settings.json")" = "bar" ] \
-           && [ "$(jq -r '.env.ENABLE_LSP_TOOL'  "$_h2/.claude/settings.json")" = "1" ] \
-           && [ "$(jq -r '.statusLine.type'      "$_h2/.claude/settings.json")" = "command" ] \
-           && [ "$(jq -r '.autoMemoryEnabled'    "$_h2/.claude/settings.json")" = "false" ]; then
+            >"$_h2/.claude/settings.json"
+        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 &&
+            [ "$(jq -r '.env.FOO' "$_h2/.claude/settings.json")" = "bar" ] &&
+            [ "$(jq -r '.env.ENABLE_LSP_TOOL' "$_h2/.claude/settings.json")" = "1" ] &&
+            [ "$(jq -r '.statusLine.type' "$_h2/.claude/settings.json")" = "command" ] &&
+            [ "$(jq -r '.autoMemoryEnabled' "$_h2/.claude/settings.json")" = "false" ]; then
             ok "preserves unrelated env and top-level keys when merging ENABLE_LSP_TOOL"
         else
             fail "did not preserve unrelated keys when merging ENABLE_LSP_TOOL"
@@ -721,12 +725,12 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && [ -f "
         _h3="$_stage/h3"
         mkdir -p "$_h3/.claude"
         HOME="$_h3" "$_rendered" >/dev/null 2>&1
-        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
-               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null ||
+            stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
         sleep 1
         HOME="$_h3" "$_rendered" >/dev/null 2>&1
-        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
-               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null ||
+            stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
         if [ "$_mt1" = "$_mt2" ]; then
             ok "idempotent: second run does not rewrite settings.json"
         else
@@ -754,9 +758,9 @@ if command -v zsh >/dev/null 2>&1; then
         mkdir -p "$_workdir/vendor-completions"
         ln -s "$_workdir/nonexistent" "$_workdir/vendor-completions/_docker"
         _out="$(
-          VENDOR_DIR="$_workdir/vendor-completions" \
-          BROKEN_LINK="$_workdir/vendor-completions/_docker" \
-          zsh -c '
+            VENDOR_DIR="$_workdir/vendor-completions" \
+                BROKEN_LINK="$_workdir/vendor-completions/_docker" \
+                zsh -c '
             fpath=($VENDOR_DIR /usr/share/zsh/site-functions)
             if [[ -L $BROKEN_LINK && ! -e $BROKEN_LINK ]]; then
               fpath=("${(@)fpath:#$VENDOR_DIR}")
@@ -766,12 +770,12 @@ if command -v zsh >/dev/null 2>&1; then
         )"
         rm -rf "$_workdir"
         case "$_out" in
-            *vendor-completions*)
-                fail "fpath filter did not drop broken vendor-completions dir"
-                ;;
-            *)
-                ok "fpath filter drops broken vendor-completions dir"
-                ;;
+        *vendor-completions*)
+            fail "fpath filter did not drop broken vendor-completions dir"
+            ;;
+        *)
+            ok "fpath filter drops broken vendor-completions dir"
+            ;;
         esac
     fi
 else
@@ -969,18 +973,18 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     _stage="${TMPDIR:-/tmp}/dotfiles-statusline.$$"
     mkdir -p "$_stage"
     _rendered="$_stage/run.sh"
-    if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_tmpl" > "$_rendered" 2>/dev/null; then
+    if chezmoi execute-template -S "$SCRIPT_DIR/home" <"$_tmpl" >"$_rendered" 2>/dev/null; then
         chmod +x "$_rendered"
 
         # Scenario 1: no settings.json — should be created with just statusLine.
         _h1="$_stage/h1"
         mkdir -p "$_h1/.claude"
-        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 \
-           && [ -f "$_h1/.claude/settings.json" ] \
-           && [ "$(jq -r '.statusLine.type'    "$_h1/.claude/settings.json")" = "command" ] \
-           && [ "$(jq -r '.statusLine.padding' "$_h1/.claude/settings.json")" = "0" ] \
-           && jq -e '.statusLine.command | endswith("/.claude/statusline-command.sh")' \
-                  "$_h1/.claude/settings.json" >/dev/null; then
+        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 &&
+            [ -f "$_h1/.claude/settings.json" ] &&
+            [ "$(jq -r '.statusLine.type' "$_h1/.claude/settings.json")" = "command" ] &&
+            [ "$(jq -r '.statusLine.padding' "$_h1/.claude/settings.json")" = "0" ] &&
+            jq -e '.statusLine.command | endswith("/.claude/statusline-command.sh")' \
+                "$_h1/.claude/settings.json" >/dev/null; then
             ok "creates settings.json with statusLine when missing"
         else
             fail "did not create settings.json with statusLine when missing"
@@ -990,12 +994,12 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         _h2="$_stage/h2"
         mkdir -p "$_h2/.claude"
         printf '%s\n' '{"env":{"FOO":"bar"},"hooks":{"SessionStart":[]},"autoMemoryEnabled":false}' \
-            > "$_h2/.claude/settings.json"
-        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 \
-           && [ "$(jq -r '.env.FOO'           "$_h2/.claude/settings.json")" = "bar" ] \
-           && [ "$(jq -r '.autoMemoryEnabled' "$_h2/.claude/settings.json")" = "false" ] \
-           && jq -e '.hooks.SessionStart | type == "array"' "$_h2/.claude/settings.json" >/dev/null \
-           && [ "$(jq -r '.statusLine.type'   "$_h2/.claude/settings.json")" = "command" ]; then
+            >"$_h2/.claude/settings.json"
+        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 &&
+            [ "$(jq -r '.env.FOO' "$_h2/.claude/settings.json")" = "bar" ] &&
+            [ "$(jq -r '.autoMemoryEnabled' "$_h2/.claude/settings.json")" = "false" ] &&
+            jq -e '.hooks.SessionStart | type == "array"' "$_h2/.claude/settings.json" >/dev/null &&
+            [ "$(jq -r '.statusLine.type' "$_h2/.claude/settings.json")" = "command" ]; then
             ok "preserves unrelated keys when merging statusLine"
         else
             fail "did not preserve unrelated keys when merging statusLine"
@@ -1005,12 +1009,12 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
         _h3="$_stage/h3"
         mkdir -p "$_h3/.claude"
         HOME="$_h3" "$_rendered" >/dev/null 2>&1
-        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
-               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        _mt1=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null ||
+            stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
         sleep 1
         HOME="$_h3" "$_rendered" >/dev/null 2>&1
-        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null \
-               || stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
+        _mt2=$(stat -c %Y "$_h3/.claude/settings.json" 2>/dev/null ||
+            stat -f %m "$_h3/.claude/settings.json" 2>/dev/null)
         if [ "$_mt1" = "$_mt2" ]; then
             ok "idempotent: second run does not rewrite settings.json"
         else
@@ -1067,8 +1071,8 @@ if [ -f "$_nvtmpl" ]; then
         fail "does not dispatch on both x86_64 and arm64"
     fi
     # Idempotency: must short-circuit when installed version matches the pin.
-    if grep -q 'NVIM_VERSION' "$_nvtmpl" \
-       && grep -qE 'already installed|skipping' "$_nvtmpl"; then
+    if grep -q 'NVIM_VERSION' "$_nvtmpl" &&
+        grep -qE 'already installed|skipping' "$_nvtmpl"; then
         ok "has idempotency short-circuit keyed on installed version"
     else
         fail "missing idempotency short-circuit"
@@ -1135,7 +1139,7 @@ if [ -f "$_zshenvtmpl" ]; then
     # emits exactly one BROWSER= line.
     if command -v chezmoi >/dev/null 2>&1; then
         _zsrendered="${TMPDIR:-/tmp}/dotfiles-zshenv.$$"
-        if chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_zshenvtmpl" > "$_zsrendered" 2>/dev/null; then
+        if chezmoi execute-template -S "$SCRIPT_DIR/home" <"$_zshenvtmpl" >"$_zsrendered" 2>/dev/null; then
             ok "dot_zshenv.tmpl renders"
             if sh -n "$_zsrendered" 2>/dev/null; then
                 ok "rendered dot_zshenv parses under sh -n"
@@ -1152,7 +1156,7 @@ if [ -f "$_zshenvtmpl" ]; then
             fi
         else
             fail "dot_zshenv.tmpl failed to render"
-            chezmoi execute-template -S "$SCRIPT_DIR/home" < "$_zshenvtmpl" >&2 || true
+            chezmoi execute-template -S "$SCRIPT_DIR/home" <"$_zshenvtmpl" >&2 || true
         fi
         rm -f "$_zsrendered"
     else
@@ -1191,14 +1195,14 @@ _dotfiles_cli="$SCRIPT_DIR/bin/dotfiles"
 _readme="$SCRIPT_DIR/README.md"
 
 if [ -f "$_authmod" ]; then
-    if grep -q 'export GPG_TTY=' "$_authmod" \
-       && grep -q 'gpg-connect-agent updatestartuptty /bye' "$_authmod"; then
+    if grep -q 'export GPG_TTY=' "$_authmod" &&
+        grep -q 'gpg-connect-agent updatestartuptty /bye' "$_authmod"; then
         ok "auth-unlock exports GPG_TTY and refreshes gpg-agent TTY"
     else
         fail "auth-unlock does not wire GPG_TTY and gpg-agent TTY refresh"
     fi
-    if grep -q 'SSH_ASKPASS_REQUIRE="prefer"' "$_authmod" \
-       && grep -q 'SSH_ASKPASS=' "$_authmod"; then
+    if grep -q 'SSH_ASKPASS_REQUIRE="prefer"' "$_authmod" &&
+        grep -q 'SSH_ASKPASS=' "$_authmod"; then
         ok "auth-unlock configures SSH askpass prefer mode"
     else
         fail "auth-unlock does not configure SSH askpass prefer mode"
@@ -1216,8 +1220,8 @@ if [ -f "$_authmod" ]; then
 fi
 
 if [ -f "$_sshagent" ]; then
-    if grep -q 'DOTFILES_SSH_AGENT_TTL' "$_sshagent" \
-       && grep -q 'ssh-agent -t "$_ssh_agent_ttl" -s' "$_sshagent"; then
+    if grep -q 'DOTFILES_SSH_AGENT_TTL' "$_sshagent" &&
+        grep -q 'ssh-agent -t "$_ssh_agent_ttl" -s' "$_sshagent"; then
         ok "ssh-agent starts with bounded identity lifetime"
     else
         fail "ssh-agent does not start with a bounded identity lifetime"
@@ -1231,9 +1235,9 @@ if [ -f "$_pinentry" ]; then
         fail "pinentry-auto does not parse under sh -n"
         sh -n "$_pinentry" >&2 || true
     fi
-    if grep -q 'pinentry-gnome3' "$_pinentry" \
-       && grep -q 'pinentry-curses' "$_pinentry" \
-       && grep -q 'pinentry-tty' "$_pinentry"; then
+    if grep -q 'pinentry-gnome3' "$_pinentry" &&
+        grep -q 'pinentry-curses' "$_pinentry" &&
+        grep -q 'pinentry-tty' "$_pinentry"; then
         ok "pinentry-auto includes GUI and terminal fallback candidates"
     else
         fail "pinentry-auto is missing GUI or terminal pinentry candidates"
@@ -1241,8 +1245,8 @@ if [ -f "$_pinentry" ]; then
 fi
 
 if [ -f "$_gpgagent" ]; then
-    if grep -q '^default-cache-ttl 3600$' "$_gpgagent" \
-       && grep -q '^max-cache-ttl 14400$' "$_gpgagent"; then
+    if grep -q '^default-cache-ttl 3600$' "$_gpgagent" &&
+        grep -q '^max-cache-ttl 14400$' "$_gpgagent"; then
         ok "gpg-agent config sets one-hour/four-hour cache TTLs"
     else
         fail "gpg-agent config does not set expected cache TTLs"
@@ -1255,8 +1259,8 @@ if [ -f "$_gpgagent" ]; then
 fi
 
 if [ -f "$_gpgagent_auth" ]; then
-    if grep -q 'private_dot_gnupg/gpg-agent.conf.tmpl' "$_gpgagent_auth" \
-       && grep -q 'gpgconf --kill gpg-agent' "$_gpgagent_auth"; then
+    if grep -q 'private_dot_gnupg/gpg-agent.conf.tmpl' "$_gpgagent_auth" &&
+        grep -q 'gpgconf --kill gpg-agent' "$_gpgagent_auth"; then
         ok "gpg-agent auth script restarts agent after config changes"
     else
         fail "gpg-agent auth script does not restart agent after config changes"
@@ -1264,15 +1268,15 @@ if [ -f "$_gpgagent_auth" ]; then
 fi
 
 if [ -f "$_sshconfig_auth" ]; then
-    if grep -q 'BEGIN dotfiles auth unlock' "$_sshconfig_auth" \
-       && grep -q '^Host \*$' "$_sshconfig_auth" \
-       && grep -q '^[[:space:]]*AddKeysToAgent yes$' "$_sshconfig_auth"; then
+    if grep -q 'BEGIN dotfiles auth unlock' "$_sshconfig_auth" &&
+        grep -q '^Host \*$' "$_sshconfig_auth" &&
+        grep -q '^[[:space:]]*AddKeysToAgent yes$' "$_sshconfig_auth"; then
         ok "ssh config auth script appends managed AddKeysToAgent block"
     else
         fail "ssh config auth script does not append managed AddKeysToAgent block"
     fi
-    if grep -q 'cat >>"\$ssh_config"' "$_sshconfig_auth" \
-       && grep -q 'chmod 600 "\$ssh_config"' "$_sshconfig_auth"; then
+    if grep -q 'cat >>"\$ssh_config"' "$_sshconfig_auth" &&
+        grep -q 'chmod 600 "\$ssh_config"' "$_sshconfig_auth"; then
         ok "ssh config auth script preserves existing config and fixes mode"
     else
         fail "ssh config auth script does not preserve existing config and mode"
@@ -1304,16 +1308,16 @@ if [ -f "$_syspkgs" ]; then
     done
 fi
 
-if grep -q 'auth-unlock.zsh' "$_dotfiles_cli" \
-   && grep -q 'executable_pinentry-auto' "$_dotfiles_cli"; then
+if grep -q 'auth-unlock.zsh' "$_dotfiles_cli" &&
+    grep -q 'executable_pinentry-auto' "$_dotfiles_cli"; then
     ok "dotfiles test parses auth-unlock and pinentry-auto"
 else
     fail "dotfiles test does not parse auth-unlock and pinentry-auto"
 fi
 
-if grep -q 'pinentry-auto' "$_readme" \
-   && grep -q 'four hour' "$_readme" \
-   && grep -q 'SSH_ASKPASS_REQUIRE=prefer' "$_readme"; then
+if grep -q 'pinentry-auto' "$_readme" &&
+    grep -q 'four hour' "$_readme" &&
+    grep -q 'SSH_ASKPASS_REQUIRE=prefer' "$_readme"; then
     ok "README documents terminal auth unlock behavior"
 else
     fail "README does not document terminal auth unlock behavior"
@@ -1457,8 +1461,8 @@ else
     fi
 
     # Structural: worktree-branch dedup suppresses redundant branch display
-    if grep -q '"\${git_branch}" == "worktree-\${git_worktree}"' "$_sl_items" \
-        && grep -q 'branch_redundant=1' "$_sl_items"; then
+    if grep -q '"\${git_branch}" == "worktree-\${git_worktree}"' "$_sl_items" &&
+        grep -q 'branch_redundant=1' "$_sl_items"; then
         ok "branch display is suppressed when it encodes the worktree slug"
     else
         fail "branch display is not suppressed for worktree-encoded branches"
@@ -1652,16 +1656,16 @@ else
     fi
 
     # Structural: compute_session_mins uses file_btime (not only mtime)
-    if awk '/^compute_session_mins\(\) \{/,/^}/' "$_sl_data" \
-        | grep -q 'file_btime'; then
+    if awk '/^compute_session_mins\(\) \{/,/^}/' "$_sl_data" |
+        grep -q 'file_btime'; then
         ok "compute_session_mins uses file_btime"
     else
         fail "compute_session_mins does not use file_btime"
     fi
 
     # Structural: JSONL timestamp fallback is wired
-    if awk '/^file_btime\(\) \{/,/^}/' "$_sl_data" \
-        | grep -q '\.timestamp'; then
+    if awk '/^file_btime\(\) \{/,/^}/' "$_sl_data" |
+        grep -q '\.timestamp'; then
         ok "file_btime falls back to first-line JSONL timestamp"
     else
         fail "file_btime has no JSONL timestamp fallback"
@@ -1826,8 +1830,8 @@ fi
 
 # Layout module: layout_pack + layout_render + max_lines = 5
 if [ -f "$_sl_layout" ]; then
-    if grep -q '^layout_pack()' "$_sl_layout" \
-       && grep -q '^layout_render()' "$_sl_layout"; then
+    if grep -q '^layout_pack()' "$_sl_layout" &&
+        grep -q '^layout_render()' "$_sl_layout"; then
         ok "layout_pack + layout_render defined in layout.sh"
     else
         fail "layout_pack / layout_render missing from layout.sh"
@@ -1857,8 +1861,8 @@ if [ -f "$_sl_main" ]; then
 fi
 
 # Behavioural: rendered output respects terminal width
-if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
-        && [ -f "$_sl_main" ]; then
+if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
+    [ -f "$_sl_main" ]; then
     _fixture='{
       "model": {"id":"claude-opus-4-7","display_name":"Opus"},
       "workspace": {"current_dir":"/tmp","project_dir":"/tmp"},
@@ -1885,38 +1889,38 @@ if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
     }'
 
     # Width 300 → 1 line, contains model and Context (everything fits)
-    _out300=$(printf '%s' "$_fixture" | \
+    _out300=$(printf '%s' "$_fixture" |
         env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
-        bash "$_sl_main" 2>/dev/null)
+            bash "$_sl_main" 2>/dev/null)
     _lines300=$(printf '%s\n' "$_out300" | grep -c .)
-    if [ "$_lines300" -eq 1 ] \
-       && printf '%s' "$_out300" | grep -q 'Opus' \
-       && printf '%s' "$_out300" | grep -q 'Context'; then
+    if [ "$_lines300" -eq 1 ] &&
+        printf '%s' "$_out300" | grep -q 'Opus' &&
+        printf '%s' "$_out300" | grep -q 'Context'; then
         ok "width=300 renders 1 line containing model + Context"
     else
         fail "width=300 produced $_lines300 line(s); expected 1 with Opus+Context"
     fi
 
     # Width 80 → 2-5 lines, model + Context + Weekly all present
-    _out80=$(printf '%s' "$_fixture" | \
+    _out80=$(printf '%s' "$_fixture" |
         env -u COLUMNS CLAUDE_STATUSLINE_COLS=80 \
-        bash "$_sl_main" 2>/dev/null)
+            bash "$_sl_main" 2>/dev/null)
     _lines80=$(printf '%s\n' "$_out80" | grep -c .)
-    if [ "$_lines80" -ge 2 ] && [ "$_lines80" -le 5 ] \
-       && printf '%s' "$_out80" | grep -q 'Opus' \
-       && printf '%s' "$_out80" | grep -q 'Context'; then
+    if [ "$_lines80" -ge 2 ] && [ "$_lines80" -le 5 ] &&
+        printf '%s' "$_out80" | grep -q 'Opus' &&
+        printf '%s' "$_out80" | grep -q 'Context'; then
         ok "width=80 renders $_lines80 line(s) containing model + Context"
     else
         fail "width=80 produced $_lines80 line(s); expected 2-5 with Opus+Context"
     fi
 
     # Width 40 → ≤ 5 lines, model still present, P2 Weekly bar dropped
-    _out40=$(printf '%s' "$_fixture" | \
+    _out40=$(printf '%s' "$_fixture" |
         env -u COLUMNS CLAUDE_STATUSLINE_COLS=40 \
-        bash "$_sl_main" 2>/dev/null)
+            bash "$_sl_main" 2>/dev/null)
     _lines40=$(printf '%s\n' "$_out40" | grep -c .)
-    if [ "$_lines40" -ge 1 ] && [ "$_lines40" -le 5 ] \
-       && printf '%s' "$_out40" | grep -q 'Opus'; then
+    if [ "$_lines40" -ge 1 ] && [ "$_lines40" -le 5 ] &&
+        printf '%s' "$_out40" | grep -q 'Opus'; then
         ok "width=40 renders $_lines40 line(s) within max-5 cap, model present"
     else
         fail "width=40 produced $_lines40 line(s); expected 1-5 with Opus"
@@ -1972,11 +1976,11 @@ else
 
     # Behavioural: running the entrypoint with no ctty must not leak the
     # /dev/tty open error to stderr.
-    if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
-            && [ -f "$_sl_main" ]; then
-        _stderr=$(printf '{}' \
-            | env -u COLUMNS -u CLAUDE_STATUSLINE_COLS \
-                  bash "$_sl_main" 2>&1 >/dev/null)
+    if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
+        [ -f "$_sl_main" ]; then
+        _stderr=$(printf '{}' |
+            env -u COLUMNS -u CLAUDE_STATUSLINE_COLS \
+                bash "$_sl_main" 2>&1 >/dev/null)
         if printf '%s' "$_stderr" | grep -q 'No such device'; then
             fail "statusline still leaks /dev/tty open error: $_stderr"
         else
@@ -2034,8 +2038,8 @@ else
     done
 
     # Behavioural: all four fields visible when all are set and width=300
-    if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 \
-            && [ -f "$_sl_main" ]; then
+    if command -v bash >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
+        [ -f "$_sl_main" ]; then
         _fix_full='{
           "model": {"id":"claude-opus-4-7","display_name":"Opus"},
           "workspace": {"current_dir":"/tmp","project_dir":"/tmp"},
@@ -2053,9 +2057,9 @@ else
             "used_percentage": 10
           }
         }'
-        _out_full=$(printf '%s' "$_fix_full" | \
+        _out_full=$(printf '%s' "$_fix_full" |
             env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
-            bash "$_sl_main" 2>/dev/null)
+                bash "$_sl_main" 2>/dev/null)
         _out_full_plain=$(printf '%s' "$_out_full" | sed 's/\x1b\[[0-9;]*m//g')
         for want in 'effort:xhigh' 'Explanatory' 'thinking' 'VIM:INSERT'; do
             if printf '%s' "$_out_full_plain" | grep -qF "$want"; then
@@ -2081,9 +2085,9 @@ else
             "used_percentage": 10
           }
         }'
-        _out_partial=$(printf '%s' "$_fix_partial" | \
+        _out_partial=$(printf '%s' "$_fix_partial" |
             env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
-            bash "$_sl_main" 2>/dev/null)
+                bash "$_sl_main" 2>/dev/null)
         _out_partial_plain=$(printf '%s' "$_out_partial" | sed 's/\x1b\[[0-9;]*m//g')
         if printf '%s' "$_out_partial_plain" | grep -qF 'effort:low'; then
             ok "partial fixture: output contains 'effort:low'"
@@ -2116,9 +2120,9 @@ else
             "used_percentage": 10
           }
         }'
-        _out_dstyle=$(printf '%s' "$_fix_default_style" | \
+        _out_dstyle=$(printf '%s' "$_fix_default_style" |
             env -u COLUMNS CLAUDE_STATUSLINE_COLS=300 \
-            bash "$_sl_main" 2>/dev/null)
+                bash "$_sl_main" 2>/dev/null)
         # The style emitter must be silent for "default"; we check the
         # ✎ glyph does not appear (it is only used by emit_output_style).
         if printf '%s' "$_out_dstyle" | grep -q '✎'; then

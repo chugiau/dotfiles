@@ -17,10 +17,10 @@ DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
-log_ok()   { printf '  \033[0;32mok\033[0m    %s\n' "$*"; }
+log_ok() { printf '  \033[0;32mok\033[0m    %s\n' "$*"; }
 log_fail() { printf '  \033[0;31mfail\033[0m  %s\n' "$*"; }
 log_skip() { printf '  \033[0;33mskip\033[0m  %s\n' "$*"; }
-has()      { command -v "$1" >/dev/null 2>&1; }
+has() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
     cat <<'EOF'
@@ -119,10 +119,10 @@ cmd_test() {
     echo ""
 
     echo "[parse]"
-    if sh -n "$DOTFILES_DIR/bootstrap.sh" \
-        && sh -n "$DOTFILES_DIR/bin/dotfiles" \
-        && sh -n "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" \
-        && sh -n "$DOTFILES_DIR/tests/test_smoke.sh"; then
+    if sh -n "$DOTFILES_DIR/bootstrap.sh" &&
+        sh -n "$DOTFILES_DIR/bin/dotfiles" &&
+        sh -n "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" &&
+        sh -n "$DOTFILES_DIR/tests/test_smoke.sh"; then
         log_ok "POSIX shell scripts parse"
     else
         log_fail "POSIX shell parse failed"
@@ -130,12 +130,12 @@ cmd_test() {
     fi
 
     if has bash; then
-        if bash -n "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
-            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \
-            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/data.sh" \
-            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/width.sh" \
-            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/items.sh" \
-            && bash -n "$DOTFILES_DIR/home/dot_claude/statusline/layout.sh"; then
+        if bash -n "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" &&
+            bash -n "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" &&
+            bash -n "$DOTFILES_DIR/home/dot_claude/statusline/data.sh" &&
+            bash -n "$DOTFILES_DIR/home/dot_claude/statusline/width.sh" &&
+            bash -n "$DOTFILES_DIR/home/dot_claude/statusline/items.sh" &&
+            bash -n "$DOTFILES_DIR/home/dot_claude/statusline/layout.sh"; then
             log_ok "Bash statusline scripts parse"
         else
             log_fail "Bash statusline parse failed"
@@ -146,12 +146,12 @@ cmd_test() {
     fi
 
     if has zsh; then
-        if zsh -n "$DOTFILES_DIR/home/dot_zprofile" \
-            && zsh -n "$DOTFILES_DIR/home/dot_zshrc" \
-            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/auth-unlock.zsh" \
-            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/completions.zsh" \
-            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/pkg-quarantine.zsh" \
-            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"; then
+        if zsh -n "$DOTFILES_DIR/home/dot_zprofile" &&
+            zsh -n "$DOTFILES_DIR/home/dot_zshrc" &&
+            zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/auth-unlock.zsh" &&
+            zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/completions.zsh" &&
+            zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/pkg-quarantine.zsh" &&
+            zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"; then
             log_ok "zsh profiles and modules parse"
         else
             log_fail "zsh parse failed"
@@ -299,17 +299,17 @@ cmd_doctor() {
         ver="$(nvim --version 2>/dev/null | head -n1 | awk '{print $2}')"
         ver="${ver#v}"
         case "$ver" in
-            '')
-                log_fail "neovim version unknown"
-                fail=$((fail + 1))
-                ;;
-            0.0.*|0.1.*|0.2.*|0.3.*|0.4.*|0.5.*|0.6.*|0.7.*|0.8.*|0.9.*|0.10.*)
-                log_fail "neovim version $ver (need >= 0.11)"
-                fail=$((fail + 1))
-                ;;
-            *)
-                log_ok "neovim version $ver (>= 0.11)"
-                ;;
+        '')
+            log_fail "neovim version unknown"
+            fail=$((fail + 1))
+            ;;
+        0.0.* | 0.1.* | 0.2.* | 0.3.* | 0.4.* | 0.5.* | 0.6.* | 0.7.* | 0.8.* | 0.9.* | 0.10.*)
+            log_fail "neovim version $ver (need >= 0.11)"
+            fail=$((fail + 1))
+            ;;
+        *)
+            log_ok "neovim version $ver (>= 0.11)"
+            ;;
         esac
     fi
 
@@ -350,18 +350,24 @@ cmd_doctor() {
 # ── dispatch ───────────────────────────────────────────────────────────────
 
 case "${1:-}" in
-    install)       shift; cmd_install "$@" ;;
-    update)        cmd_update ;;
-    link)          cmd_link ;;
-    check)         shift; cmd_check "$@" ;;
-    doctor)        cmd_doctor ;;
-    test)          cmd_test ;;
-    secrets-init)  cmd_secrets_init ;;
-    edit)          cmd_edit ;;
-    -h|--help|help|'') usage ;;
-    *)
-        echo "Unknown command: $1" >&2
-        usage >&2
-        exit 1
-        ;;
+install)
+    shift
+    cmd_install "$@"
+    ;;
+update) cmd_update ;;
+link) cmd_link ;;
+check)
+    shift
+    cmd_check "$@"
+    ;;
+doctor) cmd_doctor ;;
+test) cmd_test ;;
+secrets-init) cmd_secrets_init ;;
+edit) cmd_edit ;;
+-h | --help | help | '') usage ;;
+*)
+    echo "Unknown command: $1" >&2
+    usage >&2
+    exit 1
+    ;;
 esac
