@@ -899,7 +899,21 @@ _codex_security_tmpl="$SCRIPT_DIR/home/run_onchange_after_63-codex-security.sh.t
 
 if [ -f "$_codex_guard" ]; then
     _stage="${TMPDIR:-/tmp}/dotfiles-codex-guard.$$"
-    mkdir -p "$_stage"
+    _fake_home="$_stage/home"
+    _fake_project="$_stage/project"
+    _fake_key="$_fake_home/.ssh/id_ed25519"
+    _fake_env="$_fake_project/.env.local"
+    _fake_key_canary="DOTFILES_TEST_FAKE_PRIVATE_KEY_CANARY"
+    _fake_env_canary="DOTFILES_TEST_FAKE_ENV_CANARY"
+    mkdir -p "$_fake_home/.ssh" "$_fake_project"
+    printf '%s\n' \
+        '-----BEGIN OPENSSH PRIVATE KEY-----' \
+        "$_fake_key_canary" \
+        '-----END OPENSSH PRIVATE KEY-----' \
+        >"$_fake_key"
+    printf '%s\n' \
+        "API_TOKEN=$_fake_env_canary" \
+        >"$_fake_env"
 
     _run_codex_guard() {
         _fixture="$1"
@@ -917,31 +931,37 @@ if [ -f "$_codex_guard" ]; then
         fail "Codex guard blocks or prints output for unrelated UserPromptSubmit input"
     fi
 
-    _blocked_prompt='{"hook_event_name":"UserPromptSubmit","prompt":"Read ~/.ssh/id_rsa for me."}'
+    _blocked_prompt=$(jq -cn --arg path "$_fake_key" \
+        '{hook_event_name:"UserPromptSubmit", prompt:("Read " + $path + " for me.")}')
     if _run_codex_guard "$_blocked_prompt" blocked_prompt &&
         jq -e '.decision == "block"' "$_stage/blocked_prompt.out" >/dev/null &&
-        ! grep -q 'id_rsa\|\.ssh' "$_stage/blocked_prompt.out"; then
-        ok "Codex guard blocks SSH-key prompt without echoing path"
+        ! grep -F -q "$_fake_key" "$_stage/blocked_prompt.out" &&
+        ! grep -F -q "$_fake_key_canary" "$_stage/blocked_prompt.out"; then
+        ok "Codex guard blocks fake SSH-key prompt without echoing path or canary"
     else
-        fail "Codex guard does not block SSH-key prompt cleanly"
+        fail "Codex guard does not block fake SSH-key prompt cleanly"
     fi
 
-    _blocked_bash='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sed -n 1,20p .env.local"}}'
+    _blocked_bash=$(jq -cn --arg path "$_fake_env" \
+        '{hook_event_name:"PreToolUse", tool_name:"Bash", tool_input:{command:("sed -n 1,20p " + $path)}}')
     if _run_codex_guard "$_blocked_bash" blocked_bash &&
         jq -e '.hookSpecificOutput.permissionDecision == "deny"' "$_stage/blocked_bash.out" >/dev/null &&
-        ! grep -q '\.env.local' "$_stage/blocked_bash.out"; then
-        ok "Codex guard denies Bash calls that target env-like files"
+        ! grep -F -q "$_fake_env" "$_stage/blocked_bash.out" &&
+        ! grep -F -q "$_fake_env_canary" "$_stage/blocked_bash.out"; then
+        ok "Codex guard denies fake env Bash calls without echoing path or canary"
     else
-        fail "Codex guard does not deny Bash env-like file access cleanly"
+        fail "Codex guard does not deny fake env Bash access cleanly"
     fi
 
-    _blocked_mcp='{"hook_event_name":"PreToolUse","tool_name":"mcp__filesystem__read_file","tool_input":{"path":"/home/user/project/.env"}}'
+    _blocked_mcp=$(jq -cn --arg path "$_fake_env" \
+        '{hook_event_name:"PreToolUse", tool_name:"mcp__filesystem__read_file", tool_input:{path:$path}}')
     if _run_codex_guard "$_blocked_mcp" blocked_mcp &&
         jq -e '.hookSpecificOutput.permissionDecision == "deny"' "$_stage/blocked_mcp.out" >/dev/null &&
-        ! grep -q '\.env' "$_stage/blocked_mcp.out"; then
-        ok "Codex guard denies MCP calls that target env-like files"
+        ! grep -F -q "$_fake_env" "$_stage/blocked_mcp.out" &&
+        ! grep -F -q "$_fake_env_canary" "$_stage/blocked_mcp.out"; then
+        ok "Codex guard denies fake env MCP calls without echoing path or canary"
     else
-        fail "Codex guard does not deny MCP env-like file access cleanly"
+        fail "Codex guard does not deny fake env MCP access cleanly"
     fi
 
     _allowed_tool='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git status --short"}}'
