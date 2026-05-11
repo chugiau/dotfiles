@@ -31,9 +31,9 @@ install_darwin() {
         log "Installing Homebrew..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
-    log "brew install git git-lfs jq gnupg zsh curl wget age \\"
+    log "brew install git git-lfs jq gnupg pinentry-mac zsh curl wget age \\"
     log "             bash-completion@2 zsh-completions zsh-syntax-highlighting zsh-autosuggestions"
-    brew install git git-lfs jq gnupg zsh curl wget age \
+    brew install git git-lfs jq gnupg pinentry-mac zsh curl wget age \
         bash-completion@2 zsh-completions zsh-syntax-highlighting zsh-autosuggestions
 }
 
@@ -41,7 +41,8 @@ install_debian() {
     log "apt-get update && install system packages"
     need_sudo apt-get update -qq
     need_sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-        git git-lfs jq openssh-client gnupg zsh curl wget unzip ca-certificates \
+        git git-lfs jq openssh-client gnupg pinentry-gnome3 pinentry-curses \
+        ssh-askpass-gnome zsh curl wget unzip ca-certificates \
         build-essential age bubblewrap socat \
         bash-completion zsh-syntax-highlighting zsh-autosuggestions
     # WSL: install wslu so `wslview` is present. Spec 009 backs the
@@ -59,7 +60,7 @@ install_debian() {
 install_arch() {
     log "pacman -Syu --needed"
     need_sudo pacman -Sy --noconfirm --needed \
-        git git-lfs jq openssh gnupg zsh curl wget unzip base-devel age \
+        git git-lfs jq openssh gnupg pinentry ksshaskpass zsh curl wget unzip base-devel age \
         bubblewrap socat \
         bash-completion zsh-completions zsh-syntax-highlighting zsh-autosuggestions
 }
@@ -67,7 +68,8 @@ install_arch() {
 install_fedora() {
     log "dnf install system packages"
     need_sudo dnf install -y \
-        git git-lfs jq openssh-clients gnupg2 zsh curl wget unzip age \
+        git git-lfs jq openssh-clients openssh-askpass gnupg2 pinentry pinentry-gnome3 \
+        zsh curl wget unzip age \
         bubblewrap socat \
         bash-completion zsh-syntax-highlighting zsh-autosuggestions
     need_sudo dnf groupinstall -y "Development Tools" || true

@@ -1,0 +1,29 @@
+#!/bin/sh
+# Non-destructively add the SSH auth unlock defaults from spec 026.
+#
+# config-hash: {{ include "dot_config/dotfiles/modules/ssh-agent.zsh" | sha256sum }}
+
+set -eu
+
+ssh_dir="$HOME/.ssh"
+ssh_config="$ssh_dir/config"
+
+mkdir -p "$ssh_dir"
+chmod 700 "$ssh_dir"
+
+if [ ! -f "$ssh_config" ]; then
+    : >"$ssh_config"
+fi
+chmod 600 "$ssh_config"
+
+if grep -q 'BEGIN dotfiles auth unlock' "$ssh_config"; then
+    exit 0
+fi
+
+cat >>"$ssh_config" <<'EOF'
+
+# BEGIN dotfiles auth unlock
+Host *
+    AddKeysToAgent yes
+# END dotfiles auth unlock
+EOF

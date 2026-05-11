@@ -121,6 +121,7 @@ cmd_test() {
     echo "[parse]"
     if sh -n "$DOTFILES_DIR/bootstrap.sh" \
         && sh -n "$DOTFILES_DIR/bin/dotfiles" \
+        && sh -n "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" \
         && sh -n "$DOTFILES_DIR/tests/test_smoke.sh"; then
         log_ok "POSIX shell scripts parse"
     else
@@ -147,6 +148,7 @@ cmd_test() {
     if has zsh; then
         if zsh -n "$DOTFILES_DIR/home/dot_zprofile" \
             && zsh -n "$DOTFILES_DIR/home/dot_zshrc" \
+            && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/auth-unlock.zsh" \
             && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/completions.zsh" \
             && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/pkg-quarantine.zsh" \
             && zsh -n "$DOTFILES_DIR/home/dot_config/dotfiles/modules/ssh-agent.zsh"; then
@@ -165,6 +167,7 @@ cmd_test() {
         if shellcheck \
             "$DOTFILES_DIR/bootstrap.sh" \
             "$DOTFILES_DIR/bin/dotfiles" \
+            "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" \
             "$DOTFILES_DIR/tests/test_smoke.sh" \
             "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
             "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \
@@ -185,6 +188,7 @@ cmd_test() {
         if shfmt -d \
             "$DOTFILES_DIR/bootstrap.sh" \
             "$DOTFILES_DIR/bin/dotfiles" \
+            "$DOTFILES_DIR/home/dot_config/dotfiles/bin/executable_pinentry-auto" \
             "$DOTFILES_DIR/tests/test_smoke.sh" \
             "$DOTFILES_DIR/home/dot_claude/executable_statusline-command.sh" \
             "$DOTFILES_DIR/home/dot_claude/statusline/core.sh" \

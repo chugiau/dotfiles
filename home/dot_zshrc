@@ -43,8 +43,9 @@ setopt long_list_jobs
 setopt notify
 unsetopt nomatch
 
-# ssh-agent — must be before p10k instant prompt (may need passphrase input)
+# ssh-agent/auth-unlock — before p10k so later auth prompts can use agents.
 source "$DOTFILES/modules/ssh-agent.zsh"
+source "$DOTFILES/modules/auth-unlock.zsh"
 
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
@@ -184,4 +185,3 @@ for f in \
   /opt/homebrew/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh; do
   [ -r "$f" ] && source "$f" && break
 done
-

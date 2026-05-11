@@ -39,7 +39,7 @@ dotfiles edit             # Open the repo in $EDITOR
 
 | Layer | Managed by | Contents |
 |---|---|---|
-| **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, openssh, curl, wget, build tools |
+| **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, pinentry, openssh, ssh-askpass, curl, wget, build tools |
 | **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, codex, direnv, bats |
 | **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
@@ -83,8 +83,11 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── dot_config/
     │   ├── mise/config.toml                   # → ~/.config/mise/config.toml
     │   └── dotfiles/
+    │       ├── bin/
+    │       │   └── executable_pinentry-auto      # GUI pinentry with TTY fallback
     │       ├── modules/                       # shell modules sourced by zshrc
     │       │   ├── alias.zsh
+    │       │   ├── auth-unlock.zsh
     │       │   ├── functions.zsh
     │       │   ├── fzf.zsh
     │       │   ├── pkg-quarantine.zsh
@@ -92,11 +95,15 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     │       └── hooks/
     │           └── executable_pre-commit      # plaintext-secret / token scan
     │
+    ├── private_dot_gnupg/
+    │   └── gpg-agent.conf.tmpl                # → ~/.gnupg/gpg-agent.conf
+    │
     ├── run_once_before_10-system-packages.sh.tmpl  # apt/pacman/dnf/brew
     ├── run_onchange_after_10-mise-install.sh.tmpl  # mise install (hash-gated)
     ├── run_once_after_20-ohmyzsh.sh.tmpl           # omz + powerlevel10k
     ├── run_once_after_30-nvchad.sh.tmpl            # NvChad starter + Lazy sync
     ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit
+    ├── run_onchange_after_41-ssh-config-auth.sh.tmpl # append SSH auth defaults
     └── run_once_after_50-default-shell.sh.tmpl     # chsh -s zsh
 ```
 
@@ -127,6 +134,32 @@ The shell ships with two environment variables:
 | `$DOTFILES` | `$HOME/.config/dotfiles` | chezmoi-deployed runtime tree — shell modules sourced by zshrc/zprofile |
 
 Splitting the two keeps source and runtime separate: `zshrc` sources `$DOTFILES/modules/*.zsh`, which are the materialised files chezmoi drops into the runtime tree. Editing the source file in `home/dot_config/dotfiles/modules/` and re-running `dotfiles link` re-deploys it.
+
+### Terminal auth unlocks
+
+Interactive shells source `auth-unlock.zsh` before the powerlevel10k instant
+prompt. It prepares agent-backed passphrase prompts without prompting during
+shell startup:
+
+- GPG gets `GPG_TTY=$(tty)` and `gpg-connect-agent updatestartuptty /bye`, so
+  terminal fallback pinentry follows the current terminal or tmux pane.
+- `~/.gnupg/gpg-agent.conf` points at the managed `pinentry-auto` wrapper.
+  `pinentry-auto` prefers GUI pinentry programs when `DISPLAY` or
+  `WAYLAND_DISPLAY` exists, which covers WSLg on WSL2, and falls back to
+  `pinentry-curses` / `pinentry-tty` when no GUI session is available.
+- GPG cache is bounded to a one hour default TTL and four hour max TTL.
+- SSH gets `SSH_ASKPASS` plus `SSH_ASKPASS_REQUIRE=prefer` when a GUI session
+  and askpass helper are present, without replacing an explicitly configured
+  `SSH_ASKPASS`.
+- `ssh-agent` starts with a four hour default identity lifetime. A
+  non-destructive `run_onchange` script appends a managed trailing
+  `Host *` block to `~/.ssh/config` with `AddKeysToAgent yes`, preserving
+  existing host-specific identities while letting encrypted keys unlocked by
+  `ssh` enter the cache when not otherwise configured.
+
+This covers the common AI-agent interruption case: a long terminal task reaches
+`git commit -S`, `ssh`, or `git push`, a GUI unlock prompt appears for the
+human, and successful unlocks are reused for the bounded cache window.
 
 ### Tool management via mise
 

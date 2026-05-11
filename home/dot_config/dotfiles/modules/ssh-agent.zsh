@@ -4,6 +4,7 @@
 # the cached agent is stale or missing.
 
 _ssh_agent_env="$HOME/.ssh/agent.env"
+_ssh_agent_ttl="${DOTFILES_SSH_AGENT_TTL:-4h}"
 
 _ssh_agent_running() {
   [[ -n "$SSH_AUTH_SOCK" ]] && ssh-add -l &>/dev/null
@@ -17,7 +18,7 @@ _ssh_agent_load_env() {
 }
 
 _ssh_agent_start() {
-  ssh-agent -s > "$_ssh_agent_env" 2>/dev/null
+  ssh-agent -t "$_ssh_agent_ttl" -s > "$_ssh_agent_env" 2>/dev/null
   chmod 600 "$_ssh_agent_env"
   source "$_ssh_agent_env" &>/dev/null
 }

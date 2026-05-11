@@ -1,0 +1,35 @@
+#!/bin/sh
+# Prefer graphical pinentry when a GUI session exists; fall back to terminal UI.
+
+has_gui() {
+    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] || [ "$(uname -s 2>/dev/null)" = "Darwin" ]
+}
+
+try_exec() {
+    for candidate do
+        if [ -x "$candidate" ]; then
+            exec "$candidate"
+        fi
+    done
+}
+
+if has_gui; then
+    try_exec \
+        /opt/homebrew/bin/pinentry-mac \
+        /usr/local/bin/pinentry-mac \
+        /usr/bin/pinentry-gnome3 \
+        /usr/bin/pinentry-qt \
+        /usr/bin/pinentry-qt5 \
+        /usr/bin/pinentry-qt6 \
+        /usr/bin/pinentry-fltk
+fi
+
+try_exec \
+    /usr/bin/pinentry-curses \
+    /usr/bin/pinentry-tty \
+    /opt/homebrew/bin/pinentry \
+    /usr/local/bin/pinentry \
+    /usr/bin/pinentry
+
+echo "pinentry-auto: no pinentry program found" >&2
+exit 127
