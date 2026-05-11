@@ -120,6 +120,7 @@ check_exists "home/dot_config/dotfiles/hooks/executable_pre-commit"
 check_exists "home/private_dot_gnupg/gpg-agent.conf.tmpl"
 check_exists "home/dot_claude/executable_statusline-command.sh"
 check_exists "home/dot_claude/hooks/executable_sensitive-file-guard.sh"
+check_exists "home/dot_codex/hooks/executable_sensitive-file-guard.sh"
 echo ""
 
 # ── chezmoi run_once scripts ────────────────────────────────────────────────
@@ -136,6 +137,7 @@ check_exists "home/run_once_after_50-default-shell.sh.tmpl"
 check_exists "home/run_onchange_after_60-claude-statusline.sh.tmpl"
 check_exists "home/run_onchange_after_61-claude-env.sh.tmpl"
 check_exists "home/run_onchange_after_62-claude-security.sh.tmpl"
+check_exists "home/run_onchange_after_63-codex-security.sh.tmpl"
 echo ""
 
 # ── POSIX sh parse checks ───────────────────────────────────────────────────
@@ -144,6 +146,7 @@ check_sh_parse "bootstrap.sh"
 check_sh_parse "bin/dotfiles"
 check_sh_parse "tests/test_smoke.sh"
 check_sh_parse "home/dot_claude/hooks/executable_sensitive-file-guard.sh"
+check_sh_parse "home/dot_codex/hooks/executable_sensitive-file-guard.sh"
 echo ""
 
 # ── Bashism scans ───────────────────────────────────────────────────────────
@@ -886,6 +889,154 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
     rm -rf "$_stage"
 else
     echo "  chezmoi/jq/template missing — skipping security merge behavioural checks"
+fi
+echo ""
+
+# ── Codex sensitive-file guard (spec 030) ──────────────────────────────────
+echo "[codex sensitive-file guard]"
+_codex_guard="$SCRIPT_DIR/home/dot_codex/hooks/executable_sensitive-file-guard.sh"
+_codex_security_tmpl="$SCRIPT_DIR/home/run_onchange_after_63-codex-security.sh.tmpl"
+
+if [ -f "$_codex_guard" ]; then
+    _stage="${TMPDIR:-/tmp}/dotfiles-codex-guard.$$"
+    mkdir -p "$_stage"
+
+    _run_codex_guard() {
+        _fixture="$1"
+        _prefix="$2"
+        printf '%s\n' "$_fixture" |
+            "$_codex_guard" >"$_stage/${_prefix}.out" 2>"$_stage/${_prefix}.err"
+    }
+
+    _allowed_prompt='{"hook_event_name":"UserPromptSubmit","prompt":"Summarize README.md."}'
+    if _run_codex_guard "$_allowed_prompt" allowed_prompt &&
+        [ ! -s "$_stage/allowed_prompt.out" ] &&
+        [ ! -s "$_stage/allowed_prompt.err" ]; then
+        ok "Codex guard allows unrelated UserPromptSubmit input"
+    else
+        fail "Codex guard blocks or prints output for unrelated UserPromptSubmit input"
+    fi
+
+    _blocked_prompt='{"hook_event_name":"UserPromptSubmit","prompt":"Read ~/.ssh/id_rsa for me."}'
+    if _run_codex_guard "$_blocked_prompt" blocked_prompt &&
+        jq -e '.decision == "block"' "$_stage/blocked_prompt.out" >/dev/null &&
+        ! grep -q 'id_rsa\|\.ssh' "$_stage/blocked_prompt.out"; then
+        ok "Codex guard blocks SSH-key prompt without echoing path"
+    else
+        fail "Codex guard does not block SSH-key prompt cleanly"
+    fi
+
+    _blocked_bash='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sed -n 1,20p .env.local"}}'
+    if _run_codex_guard "$_blocked_bash" blocked_bash &&
+        jq -e '.hookSpecificOutput.permissionDecision == "deny"' "$_stage/blocked_bash.out" >/dev/null &&
+        ! grep -q '\.env.local' "$_stage/blocked_bash.out"; then
+        ok "Codex guard denies Bash calls that target env-like files"
+    else
+        fail "Codex guard does not deny Bash env-like file access cleanly"
+    fi
+
+    _blocked_mcp='{"hook_event_name":"PreToolUse","tool_name":"mcp__filesystem__read_file","tool_input":{"path":"/home/user/project/.env"}}'
+    if _run_codex_guard "$_blocked_mcp" blocked_mcp &&
+        jq -e '.hookSpecificOutput.permissionDecision == "deny"' "$_stage/blocked_mcp.out" >/dev/null &&
+        ! grep -q '\.env' "$_stage/blocked_mcp.out"; then
+        ok "Codex guard denies MCP calls that target env-like files"
+    else
+        fail "Codex guard does not deny MCP env-like file access cleanly"
+    fi
+
+    _allowed_tool='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git status --short"}}'
+    if _run_codex_guard "$_allowed_tool" allowed_tool &&
+        [ ! -s "$_stage/allowed_tool.out" ] &&
+        [ ! -s "$_stage/allowed_tool.err" ]; then
+        ok "Codex guard allows unrelated PreToolUse input"
+    else
+        fail "Codex guard blocks or prints output for unrelated PreToolUse input"
+    fi
+
+    rm -rf "$_stage"
+else
+    fail "missing Codex sensitive-file guard hook"
+fi
+
+if grep -q 'dot_codex/hooks/executable_sensitive-file-guard.sh' "$SCRIPT_DIR/bin/dotfiles" &&
+    grep -q 'run_onchange_after_63-codex-security.sh.tmpl' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "dotfiles test includes the Codex sensitive-file guard and merge script"
+else
+    fail "dotfiles test does not include the Codex sensitive-file guard and merge script"
+fi
+
+if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
+    [ -f "$_codex_security_tmpl" ]; then
+    _stage="$SCRIPT_DIR/.tmp-dotfiles-codex-security.$$"
+    mkdir -p "$_stage"
+    _rendered="$_stage/run.sh"
+    if chezmoi execute-template -S "$SCRIPT_DIR/home" <"$_codex_security_tmpl" >"$_rendered" 2>/dev/null; then
+        chmod +x "$_rendered"
+
+        _h1="$_stage/h1"
+        mkdir -p "$_h1/.codex"
+        if HOME="$_h1" "$_rendered" >/dev/null 2>&1 &&
+            grep -q 'codex_hooks = true' "$_h1/.codex/config.toml" &&
+            grep -q 'default_permissions = "dotfiles-sensitive"' "$_h1/.codex/config.toml" &&
+            grep -F -q "\"$_h1/.ssh/**\" = \"none\"" "$_h1/.codex/config.toml" &&
+            grep -F -q '"**/.env" = "none"' "$_h1/.codex/config.toml" &&
+            jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
+                "$_h1/.codex/hooks.json" >/dev/null &&
+            jq -e '.hooks.PreToolUse[]? |
+                select(.matcher == "Bash|Read|Glob|Grep|apply_patch|Edit|Write|mcp__.*") |
+                .hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
+                "$_h1/.codex/hooks.json" >/dev/null; then
+            ok "Codex security merge creates config permissions and hook settings"
+        else
+            fail "Codex security merge did not create expected config or hook settings"
+        fi
+
+        _h2="$_stage/h2"
+        mkdir -p "$_h2/.codex"
+        printf '%s\n' \
+            'model = "gpt-5.5"' \
+            '[features]' \
+            'goals = true' \
+            >"$_h2/.codex/config.toml"
+        printf '%s\n' \
+            '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/bin/true"}]}]}}' \
+            >"$_h2/.codex/hooks.json"
+        if HOME="$_h2" "$_rendered" >/dev/null 2>&1 &&
+            grep -q 'model = "gpt-5.5"' "$_h2/.codex/config.toml" &&
+            grep -q 'goals = true' "$_h2/.codex/config.toml" &&
+            grep -q 'codex_hooks = true' "$_h2/.codex/config.toml" &&
+            jq -e '.hooks.Stop[]?.hooks[]?.command == "/bin/true"' "$_h2/.codex/hooks.json" >/dev/null &&
+            jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
+                "$_h2/.codex/hooks.json" >/dev/null; then
+            ok "Codex security merge preserves unrelated config and hook settings"
+        else
+            fail "Codex security merge disturbed unrelated config or hook settings"
+        fi
+
+        _h3="$_stage/h3"
+        mkdir -p "$_h3/.codex"
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _cfg_mt1=$(stat -c %Y "$_h3/.codex/config.toml" 2>/dev/null ||
+            stat -f %m "$_h3/.codex/config.toml" 2>/dev/null)
+        _hooks_mt1=$(stat -c %Y "$_h3/.codex/hooks.json" 2>/dev/null ||
+            stat -f %m "$_h3/.codex/hooks.json" 2>/dev/null)
+        sleep 1
+        HOME="$_h3" "$_rendered" >/dev/null 2>&1
+        _cfg_mt2=$(stat -c %Y "$_h3/.codex/config.toml" 2>/dev/null ||
+            stat -f %m "$_h3/.codex/config.toml" 2>/dev/null)
+        _hooks_mt2=$(stat -c %Y "$_h3/.codex/hooks.json" 2>/dev/null ||
+            stat -f %m "$_h3/.codex/hooks.json" 2>/dev/null)
+        if [ "$_cfg_mt1" = "$_cfg_mt2" ] && [ "$_hooks_mt1" = "$_hooks_mt2" ]; then
+            ok "Codex security merge is idempotent"
+        else
+            fail "Codex security merge rewrote already-current files"
+        fi
+    else
+        fail "could not render run_onchange_after_63-codex-security.sh.tmpl"
+    fi
+    rm -rf "$_stage"
+else
+    echo "  chezmoi/jq/template missing — skipping Codex security merge behavioural checks"
 fi
 echo ""
 
