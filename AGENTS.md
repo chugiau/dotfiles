@@ -37,6 +37,8 @@ dotfiles test         # Smoke + Bats + optional static checks
 - **`home/dot_claude/`** — Claude Code runtime assets:
   - `statusline-command.sh` and `statusline/` — managed statusline
   - `hooks/sensitive-file-guard.sh` — blocks prompt/tool references to `~/.ssh/` and env-like files before Claude processes or executes them
+- **`home/dot_codex/`** — Codex runtime assets:
+  - `hooks/sensitive-file-guard.sh` — blocks prompt/tool references to `~/.ssh/` and env-like files before Codex continues
 - **`home/run_once_*.sh.tmpl`** — chezmoi setup scripts (system packages, mise install, oh-my-zsh + p10k, NvChad, git hooks, chsh).
 - **`bin/dotfiles`** — POSIX sh CLI wrapper around chezmoi + mise, including `secrets-init` for age setup.
 - **`tests/test_smoke.sh`** — POSIX sh structural tests + chezmoi template render checks.
@@ -68,6 +70,7 @@ Ordering uses numeric prefixes:
 | `run_onchange_after_60-claude-statusline.sh.tmpl` | after apply | whenever statusline wireup changes |
 | `run_onchange_after_61-claude-env.sh.tmpl`   | after apply  | whenever Claude env wireup changes |
 | `run_onchange_after_62-claude-security.sh.tmpl` | after apply | whenever Claude sensitive-file policy changes |
+| `run_onchange_after_63-codex-security.sh.tmpl` | after apply | whenever Codex sensitive-file policy changes |
 
 Go templates dispatch on `.chezmoi.os` (`darwin` / `linux`) and `.chezmoi.osRelease.id` (`ubuntu` / `debian` / `arch` / `fedora` / …).
 
@@ -91,6 +94,8 @@ Two chezmoi-native routes, no bespoke loader:
 The pre-commit hook at `home/dot_config/dotfiles/hooks/executable_pre-commit` blocks staged plaintext `*.env` (unless the path has `encrypted_` or the file ends `.env.tmpl`), age private keys (`key.txt`, `*.age`), and a bank of provider-token regexes.
 
 The Claude Code runtime guard at `home/dot_claude/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the matched path. `home/run_onchange_after_62-claude-security.sh.tmpl` wires that hook into `UserPromptSubmit` and `PreToolUse`, adds matching `permissions.deny` entries, disables bypass permissions mode, and enables fail-closed sandboxing so Bash cannot silently read denied paths without filesystem isolation.
+
+The Codex runtime guard at `home/dot_codex/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the matched path. `home/run_onchange_after_63-codex-security.sh.tmpl` enables Codex hooks, merges matching `~/.codex/hooks.json` entries, and writes a `dotfiles-sensitive` filesystem permission profile that denies reads for `~/.ssh/**` and env-like files.
 
 ## Testing
 

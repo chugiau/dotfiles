@@ -1,0 +1,220 @@
+#!/bin/sh
+# Merge Codex sensitive-file guard policy into ~/.codex config.
+
+set -eu
+
+log() { printf '\033[0;34m[codex-security]\033[0m %s\n' "$*"; }
+
+CODEX_DIR="$HOME/.codex"
+CONFIG="$CODEX_DIR/config.toml"
+HOOKS_JSON="$CODEX_DIR/hooks.json"
+HOOK="$CODEX_DIR/hooks/sensitive-file-guard.sh"
+
+PROFILE="dotfiles-sensitive"
+DEFAULT_BEGIN="# BEGIN dotfiles managed Codex default permissions"
+DEFAULT_END="# END dotfiles managed Codex default permissions"
+FILESYSTEM_BEGIN="# BEGIN dotfiles managed Codex sensitive filesystem"
+FILESYSTEM_END="# END dotfiles managed Codex sensitive filesystem"
+
+mkdir -p "$CODEX_DIR"
+[ -f "$CONFIG" ] || printf '\n' >"$CONFIG"
+
+tmp_clean=$(mktemp "${CONFIG}.clean.XXXXXX")
+tmp_features=$(mktemp "${CONFIG}.features.XXXXXX")
+tmp_default=$(mktemp "${CONFIG}.default.XXXXXX")
+tmp_final=$(mktemp "${CONFIG}.final.XXXXXX")
+tmp_normalized=$(mktemp "${CONFIG}.normalized.XXXXXX")
+trap 'rm -f "$tmp_clean" "$tmp_features" "$tmp_default" "$tmp_final" "$tmp_normalized"' EXIT INT TERM
+
+awk \
+    -v default_begin="$DEFAULT_BEGIN" \
+    -v default_end="$DEFAULT_END" \
+    -v filesystem_begin="$FILESYSTEM_BEGIN" \
+    -v filesystem_end="$FILESYSTEM_END" '
+        $0 == default_begin || $0 == filesystem_begin {
+            skip = 1
+            next
+        }
+        $0 == default_end || $0 == filesystem_end {
+            skip = 0
+            next
+        }
+        !skip {
+            if ($0 ~ /^[[:space:]]*$/) {
+                if (blank) {
+                    next
+                }
+                blank = 1
+                print ""
+                next
+            }
+            blank = 0
+            print
+        }
+    ' "$CONFIG" >"$tmp_clean"
+
+awk '
+    function add_hook_flag() {
+        if (in_features && !saw_codex_hooks) {
+            print "codex_hooks = true"
+            saw_codex_hooks = 1
+        }
+    }
+
+    /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+        add_hook_flag()
+        in_features = ($0 ~ /^[[:space:]]*\[features\][[:space:]]*$/)
+        saw_features = saw_features || in_features
+        print
+        next
+    }
+
+    in_features && /^[[:space:]]*codex_hooks[[:space:]]*=/ {
+        print "codex_hooks = true"
+        saw_codex_hooks = 1
+        next
+    }
+
+    { print }
+
+    END {
+        add_hook_flag()
+        if (!saw_features) {
+            print ""
+            print "[features]"
+            print "codex_hooks = true"
+        }
+    }
+' "$tmp_clean" >"$tmp_features"
+
+awk \
+    -v profile="$PROFILE" \
+    -v begin="$DEFAULT_BEGIN" \
+    -v end="$DEFAULT_END" '
+        function print_default() {
+            print begin
+            print "default_permissions = \"" profile "\""
+            print end
+            print ""
+            inserted = 1
+        }
+
+        !in_table && /^[[:space:]]*default_permissions[[:space:]]*=/ {
+            next
+        }
+
+        !inserted && /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+            print_default()
+            in_table = 1
+        }
+
+        /^[[:space:]]*\[[^]]+\][[:space:]]*$/ {
+            in_table = 1
+        }
+
+        { print }
+
+        END {
+            if (!inserted) {
+                if (NR > 0) {
+                    print ""
+                }
+                print_default()
+            }
+        }
+    ' "$tmp_features" >"$tmp_default"
+
+{
+    cat "$tmp_default"
+    printf '\n%s\n' "$FILESYSTEM_BEGIN"
+    printf '[permissions.%s.filesystem]\n' "$PROFILE"
+    printf '":project_roots" = {\n'
+    printf '  "." = "write",\n'
+    printf '  ".env" = "none",\n'
+    printf '  ".env.*" = "none",\n'
+    printf '  ".envrc" = "none",\n'
+    printf '  "*.env" = "none",\n'
+    printf '  "*.env.*" = "none",\n'
+    printf '  "*.envrc" = "none",\n'
+    printf '  "**/.env" = "none",\n'
+    printf '  "**/.env.*" = "none",\n'
+    printf '  "**/.envrc" = "none",\n'
+    printf '  "**/*.env" = "none",\n'
+    printf '  "**/*.env.*" = "none",\n'
+    printf '  "**/*.envrc" = "none"\n'
+    printf '}\n'
+    printf '"%s/.ssh/**" = "none"\n' "$HOME"
+    printf '"%s/.env" = "none"\n' "$HOME"
+    printf '"%s/.env.*" = "none"\n' "$HOME"
+    printf '"%s/.envrc" = "none"\n' "$HOME"
+    printf 'glob_scan_max_depth = 4\n'
+    printf '%s\n' "$FILESYSTEM_END"
+} >"$tmp_final"
+
+awk '
+    /^[[:space:]]*$/ {
+        if (!seen || blank) {
+            next
+        }
+        blank = 1
+        print ""
+        next
+    }
+    {
+        seen = 1
+        blank = 0
+        print
+    }
+' "$tmp_final" >"$tmp_normalized"
+mv "$tmp_normalized" "$tmp_final"
+
+if ! cmp -s "$CONFIG" "$tmp_final"; then
+    mv "$tmp_final" "$CONFIG"
+    log "wired Codex filesystem deny-read policy"
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+    log "jq not found; skipping Codex hooks.json merge."
+    exit 0
+fi
+
+[ -f "$HOOKS_JSON" ] || printf '{"hooks":{}}\n' >"$HOOKS_JSON"
+
+tmp_hooks=$(mktemp "${HOOKS_JSON}.XXXXXX")
+trap 'rm -f "$tmp_clean" "$tmp_features" "$tmp_default" "$tmp_final" "$tmp_normalized" "$tmp_hooks"' EXIT INT TERM
+
+jq --arg hook "$HOOK" '
+def append_unique($items):
+  reduce $items[] as $item (.;
+    if index($item) then . else . + [$item] end
+  );
+
+def command_hook($cmd):
+  {"type": "command", "command": $cmd, "timeout": 5};
+
+def prompt_entry($cmd):
+  {"hooks": [command_hook($cmd)]};
+
+def pretool_entry($cmd):
+  {
+    "matcher": "Bash|Read|Glob|Grep|apply_patch|Edit|Write|mcp__.*",
+    "hooks": [command_hook($cmd)]
+  };
+
+.hooks = (.hooks // {}) |
+.hooks.UserPromptSubmit = ((.hooks.UserPromptSubmit // []) |
+  append_unique([prompt_entry($hook)])
+) |
+.hooks.PreToolUse = ((.hooks.PreToolUse // []) |
+  append_unique([pretool_entry($hook)])
+)
+' "$HOOKS_JSON" >"$tmp_hooks"
+
+if ! cmp -s "$HOOKS_JSON" "$tmp_hooks"; then
+    mv "$tmp_hooks" "$HOOKS_JSON"
+    log "wired Codex sensitive-file guard hooks"
+else
+    rm -f "$tmp_hooks"
+fi
+
+trap - EXIT INT TERM
