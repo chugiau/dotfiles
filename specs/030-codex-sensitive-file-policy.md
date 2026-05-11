@@ -25,6 +25,10 @@ layers:
   calls, when the JSON input references those same sensitive targets.
 - The hook never prints the submitted prompt, tool input, or matched sensitive
   path in its block reason.
+- The smoke test creates temporary fake SSH private-key and env-like files with
+  canary content, then verifies blocked hook output does not include the fake
+  path or canary content. Tests must never reference real user private keys or
+  real env files.
 - `chezmoi apply` idempotently enables Codex hooks in `~/.codex/config.toml`
   while preserving unrelated existing settings.
 - `chezmoi apply` idempotently writes `~/.codex/hooks.json` with
@@ -34,7 +38,8 @@ layers:
   that denies reads for `~/.ssh/**`, home-level env files, and env-like files
   under project roots.
 - The smoke test executes the hook against representative allowed and blocked
-  `UserPromptSubmit` and `PreToolUse` fixtures.
+  `UserPromptSubmit` and `PreToolUse` fixtures, including the fake secret-file
+  fixtures.
 - The smoke test renders the Codex security merge script and exercises missing,
   existing, and already-up-to-date config and hook files.
 
