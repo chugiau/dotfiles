@@ -104,6 +104,7 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── run_once_after_30-nvchad.sh.tmpl            # NvChad starter + Lazy sync
     ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit
     ├── run_onchange_after_41-ssh-config-auth.sh.tmpl # append SSH auth defaults
+    ├── run_onchange_after_42-gpg-agent-auth.sh.tmpl # restart gpg-agent on config change
     └── run_once_after_50-default-shell.sh.tmpl     # chsh -s zsh
 ```
 
@@ -148,6 +149,9 @@ shell startup:
   `WAYLAND_DISPLAY` exists, which covers WSLg on WSL2, and falls back to
   `pinentry-curses` / `pinentry-tty` when no GUI session is available.
 - GPG cache is bounded to a one hour default TTL and four hour max TTL.
+  When that managed config changes, a `run_onchange` script kills the current
+  `gpg-agent`; the next GPG operation starts it with the new pinentry and TTL
+  settings.
 - SSH gets `SSH_ASKPASS` plus `SSH_ASKPASS_REQUIRE=prefer` when a GUI session
   and askpass helper are present, without replacing an explicitly configured
   `SSH_ASKPASS`.
