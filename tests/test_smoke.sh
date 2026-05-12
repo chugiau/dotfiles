@@ -65,6 +65,22 @@ check_no_bashisms() {
     fi
 }
 
+check_git_ignored() {
+    if git -C "$SCRIPT_DIR" check-ignore --no-index -q -- "$1"; then
+        ok "gitignore ignores: $1"
+    else
+        fail "gitignore does not ignore: $1"
+    fi
+}
+
+check_git_visible() {
+    if git -C "$SCRIPT_DIR" check-ignore --no-index -q -- "$1"; then
+        fail "gitignore hides shareable file: $1"
+    else
+        ok "gitignore keeps visible: $1"
+    fi
+}
+
 echo "Smoke tests: chezmoi + mise dotfiles"
 echo ""
 
@@ -97,6 +113,36 @@ if [ -f "$SCRIPT_DIR/.chezmoiroot" ]; then
         fail ".chezmoiroot content is '$root_content' (expected 'home')"
     fi
 fi
+echo ""
+
+# ── Local environment ignore policy (spec 031) ────────────────────────────────
+echo "[gitignore local environment policy]"
+_dot='.'
+_env='env'
+_dotenv="${_dot}${_env}"
+_envrc="${_dotenv}rc"
+_direnv="${_dot}dir${_env}"
+_credentials="credentials${_dot}${_env}"
+for ignored in \
+    "$_dotenv" \
+    "project/$_dotenv" \
+    "${_dotenv}.local" \
+    "project/${_dotenv}.production.local" \
+    "$_credentials" \
+    "project/$_credentials" \
+    "$_envrc" \
+    "project/$_envrc" \
+    "${_direnv}/cache" \
+    "project/${_direnv}/cache"; do
+    check_git_ignored "$ignored"
+done
+for visible in \
+    "${_dotenv}.example" \
+    "project/${_dotenv}.sample" \
+    "project/service${_dot}${_env}.example" \
+    "project/service${_dot}${_env}.tmpl"; do
+    check_git_visible "$visible"
+done
 echo ""
 
 # ── chezmoi source tree ─────────────────────────────────────────────────────
