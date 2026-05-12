@@ -55,9 +55,9 @@ awk \
 
 awk '
     function add_hook_flag() {
-        if (in_features && !saw_codex_hooks) {
-            print "codex_hooks = true"
-            saw_codex_hooks = 1
+        if (in_features && !saw_hooks) {
+            print "hooks = true"
+            saw_hooks = 1
         }
     }
 
@@ -65,13 +65,20 @@ awk '
         add_hook_flag()
         in_features = ($0 ~ /^[[:space:]]*\[features\][[:space:]]*$/)
         saw_features = saw_features || in_features
+        if (in_features) {
+            saw_hooks = 0
+        }
         print
         next
     }
 
     in_features && /^[[:space:]]*codex_hooks[[:space:]]*=/ {
-        print "codex_hooks = true"
-        saw_codex_hooks = 1
+        next
+    }
+
+    in_features && /^[[:space:]]*hooks[[:space:]]*=/ {
+        print "hooks = true"
+        saw_hooks = 1
         next
     }
 
@@ -82,7 +89,7 @@ awk '
         if (!saw_features) {
             print ""
             print "[features]"
-            print "codex_hooks = true"
+            print "hooks = true"
         }
     }
 ' "$tmp_clean" >"$tmp_features"
