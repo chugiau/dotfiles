@@ -999,8 +999,11 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
             grep -q 'hooks = true' "$_h1/.codex/config.toml" &&
             ! grep -q 'codex_hooks' "$_h1/.codex/config.toml" &&
             grep -q 'default_permissions = "dotfiles-sensitive"' "$_h1/.codex/config.toml" &&
-            grep -F -q "\"$_h1/.ssh/**\" = \"none\"" "$_h1/.codex/config.toml" &&
-            grep -F -q '"**/.env" = "none"' "$_h1/.codex/config.toml" &&
+            grep -F -q '":root" = "read"' "$_h1/.codex/config.toml" &&
+            grep -F -q '":tmpdir" = "write"' "$_h1/.codex/config.toml" &&
+            grep -F -q '"/tmp" = "write"' "$_h1/.codex/config.toml" &&
+            grep -F -q "\"$_h1/.ssh\" = \"none\"" "$_h1/.codex/config.toml" &&
+            grep -F -q '".env" = "none"' "$_h1/.codex/config.toml" &&
             jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
                 "$_h1/.codex/hooks.json" >/dev/null &&
             jq -e '.hooks.PreToolUse[]? |
