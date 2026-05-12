@@ -996,7 +996,8 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
         _h1="$_stage/h1"
         mkdir -p "$_h1/.codex"
         if HOME="$_h1" "$_rendered" >/dev/null 2>&1 &&
-            grep -q 'codex_hooks = true' "$_h1/.codex/config.toml" &&
+            grep -q 'hooks = true' "$_h1/.codex/config.toml" &&
+            ! grep -q 'codex_hooks' "$_h1/.codex/config.toml" &&
             grep -q 'default_permissions = "dotfiles-sensitive"' "$_h1/.codex/config.toml" &&
             grep -F -q "\"$_h1/.ssh/**\" = \"none\"" "$_h1/.codex/config.toml" &&
             grep -F -q '"**/.env" = "none"' "$_h1/.codex/config.toml" &&
@@ -1017,6 +1018,7 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
             'model = "gpt-5.5"' \
             '[features]' \
             'goals = true' \
+            'codex_hooks = false' \
             >"$_h2/.codex/config.toml"
         printf '%s\n' \
             '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"/bin/true"}]}]}}' \
@@ -1024,7 +1026,8 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
         if HOME="$_h2" "$_rendered" >/dev/null 2>&1 &&
             grep -q 'model = "gpt-5.5"' "$_h2/.codex/config.toml" &&
             grep -q 'goals = true' "$_h2/.codex/config.toml" &&
-            grep -q 'codex_hooks = true' "$_h2/.codex/config.toml" &&
+            grep -q 'hooks = true' "$_h2/.codex/config.toml" &&
+            ! grep -q 'codex_hooks' "$_h2/.codex/config.toml" &&
             jq -e '.hooks.Stop[]?.hooks[]?.command == "/bin/true"' "$_h2/.codex/hooks.json" >/dev/null &&
             jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
                 "$_h2/.codex/hooks.json" >/dev/null; then
