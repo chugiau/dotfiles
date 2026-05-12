@@ -30,7 +30,10 @@ layers:
   path or canary content. Tests must never reference real user private keys or
   real env files.
 - `chezmoi apply` idempotently enables Codex hooks in `~/.codex/config.toml`
-  while preserving unrelated existing settings.
+  with `[features].hooks = true` while preserving unrelated existing settings.
+- `chezmoi apply` removes or migrates the deprecated
+  `[features].codex_hooks` setting so Codex does not warn about deprecated
+  configuration.
 - `chezmoi apply` idempotently writes `~/.codex/hooks.json` with
   `UserPromptSubmit` and `PreToolUse` entries pointing at the managed hook while
   preserving unrelated existing hook entries.
