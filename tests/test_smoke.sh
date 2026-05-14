@@ -1143,7 +1143,10 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
         chmod +x "$_rendered"
 
         _h1="$_stage/h1"
-        mkdir -p "$_h1/.codex"
+        mkdir -p "$_h1/.codex" "$_h1/.ssh"
+        printf '%s\n' \
+            'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakePublicKeyOnly dotfiles-test' \
+            >"$_h1/.ssh/id_ed25519.pub"
         if HOME="$_h1" "$_rendered" >/dev/null 2>&1 &&
             grep -q 'hooks = true' "$_h1/.codex/config.toml" &&
             ! grep -q 'codex_hooks' "$_h1/.codex/config.toml" &&
@@ -1154,7 +1157,8 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
             grep -F -q "\"$_h1/.ssh\" = \"none\"" "$_h1/.codex/config.toml" &&
             grep -F -q "\"$_h1/.ssh/config\" = \"write\"" "$_h1/.codex/config.toml" &&
             grep -F -q "\"$_h1/.ssh/config.d\" = \"write\"" "$_h1/.codex/config.toml" &&
-            grep -F -q "\"$_h1/.ssh/*.pub\" = \"read\"" "$_h1/.codex/config.toml" &&
+            grep -F -q "\"$_h1/.ssh/id_ed25519.pub\" = \"read\"" "$_h1/.codex/config.toml" &&
+            ! grep -F -q "\"$_h1/.ssh/*.pub\" = \"read\"" "$_h1/.codex/config.toml" &&
             grep -F -q '".env" = "none"' "$_h1/.codex/config.toml" &&
             jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
                 "$_h1/.codex/hooks.json" >/dev/null &&
