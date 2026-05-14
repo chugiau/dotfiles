@@ -105,7 +105,7 @@ is_allowed_ssh_path() {
     tail=$(ssh_tail "$token")
 
     case "$tail" in
-    config | config.d/*)
+    config | config.d | config.d/*)
         return 0
         ;;
     *.pub)
