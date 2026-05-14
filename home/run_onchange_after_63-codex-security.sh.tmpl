@@ -146,7 +146,10 @@ awk \
     printf '"%s/.ssh" = "none"\n' "$HOME"
     printf '"%s/.ssh/config" = "write"\n' "$HOME"
     printf '"%s/.ssh/config.d" = "write"\n' "$HOME"
-    printf '"%s/.ssh/*.pub" = "read"\n' "$HOME"
+    for pubkey in "$HOME"/.ssh/*.pub; do
+        [ -f "$pubkey" ] || continue
+        printf '"%s" = "read"\n' "$pubkey"
+    done
     printf '"%s/.env" = "none"\n' "$HOME"
     printf '"%s/.envrc" = "none"\n' "$HOME"
     printf '%s\n' "$FILESYSTEM_END"
