@@ -95,7 +95,7 @@ The pre-commit hook at `home/dot_config/dotfiles/hooks/executable_pre-commit` bl
 
 The Claude Code runtime guard at `home/dot_claude/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the matched path. `home/run_onchange_after_62-claude-security.sh.tmpl` wires that hook into `UserPromptSubmit` and `PreToolUse`, adds matching `permissions.deny` entries, disables bypass permissions mode, and enables fail-closed sandboxing so Bash cannot silently read denied paths without filesystem isolation.
 
-The Codex runtime guard at `home/dot_codex/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the matched path. `home/run_onchange_after_63-codex-security.sh.tmpl` enables Codex hooks, merges matching `~/.codex/hooks.json` entries, and writes a `dotfiles-sensitive` filesystem permission profile that denies reads for `~/.ssh/**` and env-like files.
+The Codex runtime guard at `home/dot_codex/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to env-like files and non-allowlisted `~/.ssh/*` targets without echoing the matched path. SSH config files and `~/.ssh/*.pub` public keys are allowlisted; directory reads and unknown SSH filenames remain blocked because private keys can use arbitrary names. `home/run_onchange_after_63-codex-security.sh.tmpl` enables Codex hooks, merges matching `~/.codex/hooks.json` entries, and writes a `dotfiles-sensitive` filesystem permission profile with the same allowlist.
 
 ## Testing
 

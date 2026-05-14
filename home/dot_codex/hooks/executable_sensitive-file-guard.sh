@@ -50,17 +50,90 @@ normalize_tokens() {
     printf "%s\n" "$1" | tr "\n\r\t\",;()[]{}<>" "                  "
 }
 
-is_sensitive_path() {
+trim_token() {
+    token=$1
+    while :; do
+        case "$token" in
+        *[.:!?])
+            token=${token%?}
+            ;;
+        *)
+            printf "%s" "$token"
+            return 0
+            ;;
+        esac
+    done
+}
+
+is_ssh_path() {
     token=$1
     dot=$(printf "\056")
     ssh_name=${dot}ssh
-    env_name=${dot}env
 
     case "$token" in
-    "~/$ssh_name" | "~/$ssh_name/"* | *"/$ssh_name" | *"/$ssh_name/"* | "$ssh_name/"*)
+    "~/$ssh_name" | "~/$ssh_name/"* | *"/$ssh_name" | *"/$ssh_name/"* | "$ssh_name" | "$ssh_name/"*)
         return 0
         ;;
     esac
+
+    return 1
+}
+
+ssh_tail() {
+    token=$1
+    dot=$(printf "\056")
+    ssh_name=${dot}ssh
+
+    case "$token" in
+    "~/$ssh_name" | *"/$ssh_name" | "$ssh_name")
+        printf ""
+        ;;
+    "~/$ssh_name/"*)
+        printf "%s" "${token#~/$ssh_name/}"
+        ;;
+    *"/$ssh_name/"*)
+        printf "%s" "${token##*/$ssh_name/}"
+        ;;
+    "$ssh_name/"*)
+        printf "%s" "${token#$ssh_name/}"
+        ;;
+    esac
+}
+
+is_allowed_ssh_path() {
+    token=$1
+    tail=$(ssh_tail "$token")
+
+    case "$tail" in
+    config | config.d/*)
+        return 0
+        ;;
+    *.pub)
+        case "$tail" in
+        */*)
+            return 1
+            ;;
+        *)
+            return 0
+            ;;
+        esac
+        ;;
+    esac
+
+    return 1
+}
+
+is_sensitive_path() {
+    token=$(trim_token "$1")
+    dot=$(printf "\056")
+    env_name=${dot}env
+
+    if is_ssh_path "$token"; then
+        if is_allowed_ssh_path "$token"; then
+            return 1
+        fi
+        return 0
+    fi
 
     base=${token##*/}
     case "$base" in

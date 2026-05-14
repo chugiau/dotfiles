@@ -144,6 +144,9 @@ awk \
     printf '  ".envrc" = "none"\n'
     printf '}\n'
     printf '"%s/.ssh" = "none"\n' "$HOME"
+    printf '"%s/.ssh/config" = "write"\n' "$HOME"
+    printf '"%s/.ssh/config.d" = "write"\n' "$HOME"
+    printf '"%s/.ssh/*.pub" = "read"\n' "$HOME"
     printf '"%s/.env" = "none"\n' "$HOME"
     printf '"%s/.envrc" = "none"\n' "$HOME"
     printf '%s\n' "$FILESYSTEM_END"
