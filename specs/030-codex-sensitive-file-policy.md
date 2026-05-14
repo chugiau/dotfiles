@@ -19,8 +19,11 @@ layers:
 - `chezmoi apply` installs an executable Codex hook under `~/.codex/hooks/`
   that blocks direct references to sensitive file targets.
 - The hook blocks `UserPromptSubmit` input that asks Codex to read, show,
-  edit, or otherwise access path-like sensitive file targets matching `~/.ssh/`,
-  `.env`, `.env.*`, `.envrc`, or `*.env*` before the prompt continues.
+  edit, or otherwise access path-like sensitive file targets matching `.env`,
+  `.env.*`, `.envrc`, or `*.env*` before the prompt continues.
+- The hook treats SSH paths as an allowlist: `~/.ssh/config`,
+  `~/.ssh/config.d/*`, and public keys under `~/.ssh/*.pub` are allowed, while
+  directory reads of `~/.ssh` and any other `~/.ssh/*` target are blocked.
 - The hook allows prompts that discuss those names as plain text without asking
   Codex to access the corresponding files.
 - The hook blocks `PreToolUse` input for common read or edit paths, including
@@ -43,8 +46,8 @@ layers:
   `UserPromptSubmit` and `PreToolUse` entries pointing at the managed hook while
   preserving unrelated existing hook entries.
 - `chezmoi apply` idempotently configures a Codex filesystem permission profile
-  that denies reads for `~/.ssh/**`, home-level env files, and env-like files
-  under project roots.
+  that allows the SSH config allowlist while denying other `~/.ssh/*` targets,
+  home-level env files, and env-like files under project roots.
 - The smoke test executes the hook against representative allowed and blocked
   `UserPromptSubmit` and `PreToolUse` fixtures, including the fake secret-file
   fixtures and false-positive cases where sensitive basenames appear only as
@@ -56,8 +59,9 @@ layers:
 
 - Enterprise-managed Codex requirements under `/etc/codex/requirements.toml`;
   this repository manages user-level dotfiles, not system policy.
-- Distinguishing SSH private keys from other files under `~/.ssh/`; the policy
-  denies the whole directory because private keys can use arbitrary filenames.
+- Content-inspecting SSH files to distinguish private keys from other files.
+  Private keys can use arbitrary filenames, so the policy uses a small
+  allowlist instead of reading candidate file contents.
 - Allowlisting individual non-secret env files.
 - Preventing a user from deliberately launching Codex with
   `--dangerously-bypass-approvals-and-sandbox` or overriding the managed
