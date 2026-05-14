@@ -18,11 +18,16 @@ layers:
 
 - `chezmoi apply` installs an executable Codex hook under `~/.codex/hooks/`
   that blocks direct references to sensitive file targets.
-- The hook blocks `UserPromptSubmit` input that references `~/.ssh/`, `.env`,
-  `.env.*`, `.envrc`, or `*.env*` before the prompt continues.
+- The hook blocks `UserPromptSubmit` input that asks Codex to read, show,
+  edit, or otherwise access path-like sensitive file targets matching `~/.ssh/`,
+  `.env`, `.env.*`, `.envrc`, or `*.env*` before the prompt continues.
+- The hook allows prompts that discuss those names as plain text without asking
+  Codex to access the corresponding files.
 - The hook blocks `PreToolUse` input for common read or edit paths, including
   `Bash`, `Read`, `Glob`, `Grep`, `apply_patch`, `Edit`, `Write`, and MCP tool
-  calls, when the JSON input references those same sensitive targets.
+  calls, when structured path fields or command arguments reference those same
+  path-like sensitive targets. Search patterns or prose that merely mention a
+  sensitive basename are allowed when they are not file access targets.
 - The hook never prints the submitted prompt, tool input, or matched sensitive
   path in its block reason.
 - The smoke test creates temporary fake SSH private-key and env-like files with
@@ -42,7 +47,8 @@ layers:
   under project roots.
 - The smoke test executes the hook against representative allowed and blocked
   `UserPromptSubmit` and `PreToolUse` fixtures, including the fake secret-file
-  fixtures.
+  fixtures and false-positive cases where sensitive basenames appear only as
+  text or search patterns.
 - The smoke test renders the Codex security merge script and exercises missing,
   existing, and already-up-to-date config and hook files.
 
