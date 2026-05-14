@@ -977,7 +977,7 @@ if [ -f "$_codex_guard" ]; then
         fail "Codex guard blocks or prints output for unrelated UserPromptSubmit input"
     fi
     _envrc_literal=$(printf "\056envrc")
-    _allowed_discussion_prompt=$(printf "{\\"hook_event_name\\":\\"UserPromptSubmit\\",\\"prompt\\":\\"Explain the string %s without reading files.\\"}" "$_envrc_literal")
+    _allowed_discussion_prompt=$(printf "{\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"Explain the string %s without reading files.\"}" "$_envrc_literal")
     if _run_codex_guard "$_allowed_discussion_prompt" allowed_discussion_prompt &&
         [ ! -s "$_stage/allowed_discussion_prompt.out" ] &&
         [ ! -s "$_stage/allowed_discussion_prompt.err" ]; then
@@ -1020,7 +1020,7 @@ if [ -f "$_codex_guard" ]; then
         fail "Codex guard does not deny fake env MCP access cleanly"
     fi
 
-    _allowed_search_pattern=$(printf "{\\"hook_event_name\\":\\"PreToolUse\\",\\"tool_name\\":\\"Bash\\",\\"tool_input\\":{\\"command\\":\\"rg -n %s tests\\"}}" "$_envrc_literal")
+    _allowed_search_pattern=$(printf "{\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rg -n %s tests\"}}" "$_envrc_literal")
     if _run_codex_guard "$_allowed_search_pattern" allowed_search_pattern &&
         [ ! -s "$_stage/allowed_search_pattern.out" ] &&
         [ ! -s "$_stage/allowed_search_pattern.err" ]; then
