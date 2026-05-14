@@ -948,15 +948,29 @@ if [ -f "$_codex_guard" ]; then
     _fake_home="$_stage/home"
     _fake_project="$_stage/project"
     _fake_key="$_fake_home/.ssh/id_ed25519"
+    _fake_ssh_config="$_fake_home/.ssh/config"
+    _fake_ssh_include="$_fake_home/.ssh/config.d/work"
+    _fake_pub_key="$_fake_home/.ssh/id_ed25519.pub"
     _fake_env="$_fake_project/.env.local"
     _fake_key_canary="DOTFILES_TEST_FAKE_PRIVATE_KEY_CANARY"
     _fake_env_canary="DOTFILES_TEST_FAKE_ENV_CANARY"
-    mkdir -p "$_fake_home/.ssh" "$_fake_project"
+    mkdir -p "$_fake_home/.ssh/config.d" "$_fake_project"
     printf '%s\n' \
         '-----BEGIN OPENSSH PRIVATE KEY-----' \
         "$_fake_key_canary" \
         '-----END OPENSSH PRIVATE KEY-----' \
         >"$_fake_key"
+    printf '%s\n' \
+        'Host example' \
+        '    HostName example.invalid' \
+        >"$_fake_ssh_config"
+    printf '%s\n' \
+        'Host work' \
+        '    HostName work.invalid' \
+        >"$_fake_ssh_include"
+    printf '%s\n' \
+        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakePublicKeyOnly dotfiles-test' \
+        >"$_fake_pub_key"
     printf '%s\n' \
         "API_TOKEN=$_fake_env_canary" \
         >"$_fake_env"
@@ -986,6 +1000,36 @@ if [ -f "$_codex_guard" ]; then
         fail "Codex guard blocks plain-text sensitive basename discussion"
     fi
 
+    _allowed_spaced_ssh_prompt='{"hook_event_name":"UserPromptSubmit","prompt":"Explain ~ / . s s h as plain text."}'
+    if _run_codex_guard "$_allowed_spaced_ssh_prompt" allowed_spaced_ssh_prompt &&
+        [ ! -s "$_stage/allowed_spaced_ssh_prompt.out" ] &&
+        [ ! -s "$_stage/allowed_spaced_ssh_prompt.err" ]; then
+        ok "Codex guard allows spaced plain-text SSH directory discussion"
+    else
+        fail "Codex guard blocks spaced plain-text SSH directory discussion"
+    fi
+
+    _allowed_ssh_config_prompt=$(jq -cn --arg path "$_fake_ssh_config" \
+        '{hook_event_name:"UserPromptSubmit", prompt:("Read " + $path + " for me.")}')
+    if _run_codex_guard "$_allowed_ssh_config_prompt" allowed_ssh_config_prompt &&
+        [ ! -s "$_stage/allowed_ssh_config_prompt.out" ] &&
+        [ ! -s "$_stage/allowed_ssh_config_prompt.err" ]; then
+        ok "Codex guard allows SSH config prompt targets"
+    else
+        fail "Codex guard blocks SSH config prompt targets"
+    fi
+
+    _blocked_ssh_dir_prompt=$(jq -cn --arg path "$_fake_home/.ssh" \
+        '{hook_event_name:"UserPromptSubmit", prompt:("List " + $path + " for me.")}')
+    if _run_codex_guard "$_blocked_ssh_dir_prompt" blocked_ssh_dir_prompt &&
+        jq -e '.decision == "block"' "$_stage/blocked_ssh_dir_prompt.out" >/dev/null &&
+        ! grep -F -q "$_fake_home/.ssh" "$_stage/blocked_ssh_dir_prompt.out" &&
+        ! grep -F -q "$_fake_key_canary" "$_stage/blocked_ssh_dir_prompt.out"; then
+        ok "Codex guard blocks SSH directory prompt targets without echoing path"
+    else
+        fail "Codex guard does not block SSH directory prompt targets cleanly"
+    fi
+
 
     _blocked_prompt=$(jq -cn --arg path "$_fake_key" \
         '{hook_event_name:"UserPromptSubmit", prompt:("Read " + $path + " for me.")}')
@@ -996,6 +1040,36 @@ if [ -f "$_codex_guard" ]; then
         ok "Codex guard blocks fake SSH-key prompt without echoing path or canary"
     else
         fail "Codex guard does not block fake SSH-key prompt cleanly"
+    fi
+
+    _allowed_ssh_config_bash=$(jq -cn --arg path "$_fake_ssh_config" \
+        '{hook_event_name:"PreToolUse", tool_name:"Bash", tool_input:{command:("sed -n 1,20p " + $path)}}')
+    if _run_codex_guard "$_allowed_ssh_config_bash" allowed_ssh_config_bash &&
+        [ ! -s "$_stage/allowed_ssh_config_bash.out" ] &&
+        [ ! -s "$_stage/allowed_ssh_config_bash.err" ]; then
+        ok "Codex guard allows SSH config Bash targets"
+    else
+        fail "Codex guard blocks SSH config Bash targets"
+    fi
+
+    _allowed_ssh_include_mcp=$(jq -cn --arg path "$_fake_ssh_include" \
+        '{hook_event_name:"PreToolUse", tool_name:"mcp__filesystem__read_file", tool_input:{path:$path}}')
+    if _run_codex_guard "$_allowed_ssh_include_mcp" allowed_ssh_include_mcp &&
+        [ ! -s "$_stage/allowed_ssh_include_mcp.out" ] &&
+        [ ! -s "$_stage/allowed_ssh_include_mcp.err" ]; then
+        ok "Codex guard allows SSH config.d MCP targets"
+    else
+        fail "Codex guard blocks SSH config.d MCP targets"
+    fi
+
+    _allowed_pub_mcp=$(jq -cn --arg path "$_fake_pub_key" \
+        '{hook_event_name:"PreToolUse", tool_name:"mcp__filesystem__read_file", tool_input:{path:$path}}')
+    if _run_codex_guard "$_allowed_pub_mcp" allowed_pub_mcp &&
+        [ ! -s "$_stage/allowed_pub_mcp.out" ] &&
+        [ ! -s "$_stage/allowed_pub_mcp.err" ]; then
+        ok "Codex guard allows SSH public-key MCP targets"
+    else
+        fail "Codex guard blocks SSH public-key MCP targets"
     fi
 
     _blocked_bash=$(jq -cn --arg path "$_fake_env" \
@@ -1068,6 +1142,9 @@ if command -v chezmoi >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 &&
             grep -F -q '":tmpdir" = "write"' "$_h1/.codex/config.toml" &&
             grep -F -q '"/tmp" = "write"' "$_h1/.codex/config.toml" &&
             grep -F -q "\"$_h1/.ssh\" = \"none\"" "$_h1/.codex/config.toml" &&
+            grep -F -q "\"$_h1/.ssh/config\" = \"write\"" "$_h1/.codex/config.toml" &&
+            grep -F -q "\"$_h1/.ssh/config.d\" = \"write\"" "$_h1/.codex/config.toml" &&
+            grep -F -q "\"$_h1/.ssh/*.pub\" = \"read\"" "$_h1/.codex/config.toml" &&
             grep -F -q '".env" = "none"' "$_h1/.codex/config.toml" &&
             jq -e '.hooks.UserPromptSubmit[]?.hooks[]?.command | endswith("/.codex/hooks/sensitive-file-guard.sh")' \
                 "$_h1/.codex/hooks.json" >/dev/null &&
