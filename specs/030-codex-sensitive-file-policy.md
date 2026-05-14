@@ -22,8 +22,9 @@ layers:
   edit, or otherwise access path-like sensitive file targets matching `.env`,
   `.env.*`, `.envrc`, or `*.env*` before the prompt continues.
 - The hook treats SSH paths as an allowlist: `~/.ssh/config`,
-  `~/.ssh/config.d/*`, and public keys under `~/.ssh/*.pub` are allowed, while
-  directory reads of `~/.ssh` and any other `~/.ssh/*` target are blocked.
+  `~/.ssh/config.d`, `~/.ssh/config.d/*`, and public keys under `~/.ssh/*.pub`
+  are allowed, while directory reads of `~/.ssh` and any other `~/.ssh/*`
+  target are blocked.
 - The hook allows prompts that discuss those names as plain text without asking
   Codex to access the corresponding files.
 - The hook blocks `PreToolUse` input for common read or edit paths, including
