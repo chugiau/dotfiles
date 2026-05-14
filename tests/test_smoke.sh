@@ -1062,6 +1062,16 @@ if [ -f "$_codex_guard" ]; then
         fail "Codex guard blocks SSH config.d MCP targets"
     fi
 
+    _allowed_ssh_config_dir_bash=$(jq -cn --arg path "$_fake_home/.ssh/config.d" \
+        '{hook_event_name:"PreToolUse", tool_name:"Bash", tool_input:{command:("mkdir -p " + $path)}}')
+    if _run_codex_guard "$_allowed_ssh_config_dir_bash" allowed_ssh_config_dir_bash &&
+        [ ! -s "$_stage/allowed_ssh_config_dir_bash.out" ] &&
+        [ ! -s "$_stage/allowed_ssh_config_dir_bash.err" ]; then
+        ok "Codex guard allows SSH config.d directory targets"
+    else
+        fail "Codex guard blocks SSH config.d directory targets"
+    fi
+
     _allowed_pub_mcp=$(jq -cn --arg path "$_fake_pub_key" \
         '{hook_event_name:"PreToolUse", tool_name:"mcp__filesystem__read_file", tool_input:{path:$path}}')
     if _run_codex_guard "$_allowed_pub_mcp" allowed_pub_mcp &&
