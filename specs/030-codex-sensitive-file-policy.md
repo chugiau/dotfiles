@@ -49,6 +49,10 @@ layers:
 - `chezmoi apply` idempotently configures a Codex filesystem permission profile
   that allows the SSH config allowlist while denying other `~/.ssh/*` targets,
   home-level env files, and env-like files under project roots.
+- Because Codex filesystem `read` access does not support arbitrary glob
+  patterns, `chezmoi apply` writes exact filesystem entries for public keys
+  that already exist under `~/.ssh/*.pub`; the hook remains responsible for
+  allowing public-key targets as a policy class.
 - The smoke test executes the hook against representative allowed and blocked
   `UserPromptSubmit` and `PreToolUse` fixtures, including the fake secret-file
   fixtures and false-positive cases where sensitive basenames appear only as
