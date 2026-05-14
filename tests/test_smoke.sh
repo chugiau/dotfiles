@@ -976,6 +976,16 @@ if [ -f "$_codex_guard" ]; then
     else
         fail "Codex guard blocks or prints output for unrelated UserPromptSubmit input"
     fi
+    _envrc_literal=$(printf "\056envrc")
+    _allowed_discussion_prompt=$(printf "{\\"hook_event_name\\":\\"UserPromptSubmit\\",\\"prompt\\":\\"Explain the string %s without reading files.\\"}" "$_envrc_literal")
+    if _run_codex_guard "$_allowed_discussion_prompt" allowed_discussion_prompt &&
+        [ ! -s "$_stage/allowed_discussion_prompt.out" ] &&
+        [ ! -s "$_stage/allowed_discussion_prompt.err" ]; then
+        ok "Codex guard allows plain-text sensitive basename discussion"
+    else
+        fail "Codex guard blocks plain-text sensitive basename discussion"
+    fi
+
 
     _blocked_prompt=$(jq -cn --arg path "$_fake_key" \
         '{hook_event_name:"UserPromptSubmit", prompt:("Read " + $path + " for me.")}')
@@ -1008,6 +1018,15 @@ if [ -f "$_codex_guard" ]; then
         ok "Codex guard denies fake env MCP calls without echoing path or canary"
     else
         fail "Codex guard does not deny fake env MCP access cleanly"
+    fi
+
+    _allowed_search_pattern=$(printf "{\\"hook_event_name\\":\\"PreToolUse\\",\\"tool_name\\":\\"Bash\\",\\"tool_input\\":{\\"command\\":\\"rg -n %s tests\\"}}" "$_envrc_literal")
+    if _run_codex_guard "$_allowed_search_pattern" allowed_search_pattern &&
+        [ ! -s "$_stage/allowed_search_pattern.out" ] &&
+        [ ! -s "$_stage/allowed_search_pattern.err" ]; then
+        ok "Codex guard allows sensitive basename search patterns"
+    else
+        fail "Codex guard blocks sensitive basename search patterns"
     fi
 
     _allowed_tool='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git status --short"}}'
