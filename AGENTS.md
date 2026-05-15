@@ -1,113 +1,86 @@
 # Agent Guidelines — dotfiles
 
-## Rules (override defaults)
+This file is for repo-specific agent behavior. Read the relevant files for
+implementation details instead of treating this as a README.
 
-1. **SDD (Spec-Driven Development)** — Write a spec **before** the test. Workflow is **Spec → Test → Code**: the spec defines *what* and *why* (intent, acceptance criteria, out-of-scope, affected files); the test encodes the spec as an executable check; the code makes the test pass. The spec is the source of truth — if behaviour needs to change, edit the spec first, then the test, then the code. Never let test or code drift ahead of the spec.
-   - **Where specs live.** Non-trivial change → `specs/NNN-slug.md` (committed alongside the code change). Trivial fix (typo, one-liner, doc tweak) → spec may live inline in the commit message body under a `Spec:` section. When in doubt, write the file.
-   - **Spec template.** `## Intent` · `## Acceptance criteria` (bulleted, each one testable) · `## Out of scope` · `## Affected files`.
-   - **Interaction with TDD.** SDD does *not* replace TDD — it precedes it. Red-Green-Refactor still applies; the spec just answers "red against what?" before you write the failing test. If a spec and an existing test conflict, the spec wins: update the test.
-2. **TDD** — Apply only when implementing features or changing code. Write tests first, derived from the spec. Red → Green → Refactor. Documentation-only changes, wording updates, planning notes, and other non-code work do not require TDD.
-3. **Commit after each logical unit** — Don't batch. Commit proactively without waiting to be asked. A spec edit, a test edit, and an implementation edit are each a logical unit and may be separate commits.
-4. **English for all artifacts** — Code, commits, comments, docs, specs. User conversation is the only exception.
+## Required Workflow
 
-## Quick Start
+1. **SDD first.** For non-trivial changes, write/update `specs/NNN-slug.md`
+   before tests or code. Template: `## Intent`, `## Acceptance criteria`,
+   `## Out of scope`, `## Affected files`. Trivial fixes may put `Spec:` in the
+   commit body.
+2. **TDD only for code.** Feature/code changes use Red -> Green -> Refactor
+   from the spec. Documentation-only changes and other non-code work do not
+   require TDD.
+3. **Spec wins.** If a spec, test, and implementation disagree, update the test
+   and implementation to match the spec, or edit the spec first when behavior
+   should change.
+4. **Commit each logical unit.** Commit proactively. Spec, test, and
+   implementation edits may be separate commits.
+5. **English artifacts.** Code, comments, docs, specs, and commits are English.
+   User conversation is the only exception.
 
-```sh
-# First-time setup (zero-dependency POSIX sh bootstrap)
-sh bootstrap.sh
+## Core Commands
 
-# After setup, use the CLI wrapper
-dotfiles install      # chezmoi apply + mise install
-dotfiles update       # chezmoi update + mise upgrade + omz + p10k + nvim plugins
-dotfiles link         # Re-apply chezmoi (re-create managed files)
-dotfiles check        # Dry-run (chezmoi diff)
-dotfiles doctor       # Health check
-dotfiles test         # Smoke + Bats + optional static checks
-```
+`sh bootstrap.sh`, `dotfiles install`, `dotfiles update`, `dotfiles link`,
+`dotfiles check`, `dotfiles doctor`, `dotfiles test`, `sh tests/test_smoke.sh`,
+`bats tests/bats`.
 
-## Architecture
+## Repo Map
 
-- **`bootstrap.sh`** — POSIX sh, zero-dependency bootstrap. Installs curl/git/ca-certs via system PM, drops chezmoi and mise into `~/.local/bin`, clones the repo, writes `~/.config/chezmoi/chezmoi.toml`, runs `chezmoi apply`.
-- **`.chezmoiroot`** — contains `home`. Points chezmoi at `home/` as its source directory.
-- **`home/`** — chezmoi source root, mirrors `$HOME`. File naming follows chezmoi conventions (`dot_`, `executable_`, `private_`, `encrypted_`, `run_once_*`, `run_onchange_*`).
-- **`home/dot_config/mise/config.toml`** — mise tool manifest (neovim, bat, eza, lazygit, glow).
-- **`home/dot_config/dotfiles/`** — runtime tree deployed by chezmoi:
-  - `modules/*.zsh` — shell modules sourced by zshrc (alias, functions, fzf, pkg-quarantine, ssh-agent)
-  - `hooks/pre-commit` — source for the repo's own git pre-commit hook (blocks plaintext env files, age keys, and leaked provider tokens)
-- **`home/dot_claude/`** — Claude Code runtime assets:
-  - `statusline-command.sh` and `statusline/` — managed statusline
-  - `hooks/sensitive-file-guard.sh` — blocks prompt/tool references to `~/.ssh/` and env-like files before Claude processes or executes them
-- **`home/dot_codex/`** — Codex runtime assets:
-  - `hooks/sensitive-file-guard.sh` — blocks prompt/tool references to `~/.ssh/` and env-like files before Codex continues
-- **`home/run_once_*.sh.tmpl`** — chezmoi setup scripts (system packages, mise install, oh-my-zsh + p10k, NvChad, git hooks, chsh).
-- **`bin/dotfiles`** — POSIX sh CLI wrapper around chezmoi + mise, including `secrets-init` for age setup.
-- **`tests/test_smoke.sh`** — POSIX sh structural tests + chezmoi template render checks.
-- **`tests/bats/`** — Bats behaviour/integration tests for shell commands and hooks.
+- `bootstrap.sh`: POSIX sh bootstrap; installs prereqs, chezmoi, mise, clones
+  this repo, writes chezmoi config, runs `chezmoi apply`.
+- `.chezmoiroot`: points chezmoi at `home/`.
+- `home/`: chezmoi source tree, materialized into `$HOME`.
+- `bin/dotfiles`: POSIX sh CLI wrapper.
+- `home/dot_config/mise/config.toml`: mise-managed CLI tool manifest.
+- `home/dot_config/dotfiles/modules/`: source for shell modules deployed to
+  `$DOTFILES/modules/`.
+- `home/dot_claude/`, `home/dot_codex/`: managed Claude/Codex hooks and config.
+- `tests/test_smoke.sh`: main regression suite; many project decisions are
+  encoded as grep/parse/render assertions.
 
-## Environment variables
+## Easy-To-Guess-Wrong Conventions
 
-| Variable         | Points at                | Purpose                                     |
-|------------------|--------------------------|---------------------------------------------|
-| `$DOTFILES_REPO` | `$HOME/.dotfiles`        | Git checkout                                |
-| `$DOTFILES`      | `$HOME/.config/dotfiles` | chezmoi runtime tree — shell modules, hooks |
+- **Runtime/source split:** `$DOTFILES_REPO=~/.dotfiles`; `$DOTFILES=~/.config/dotfiles`.
+  Shell startup sources `$DOTFILES`, not repo files. Edit
+  `home/dot_config/dotfiles/`, then run `dotfiles link` or `chezmoi apply`.
+- **Shell file split:** `dot_zshenv.tmpl` is pure env for every zsh invocation.
+  Put login side effects in `dot_zprofile`; interactive setup in `dot_zshrc`.
+- **BROWSER is apply-time:** `dot_zshenv.tmpl` renders `open`, `wslview`, or
+  `xdg-open`; do not add per-shell detection.
+- **mise PATH order matters:** bun/dotnet fallback blocks append to `PATH`.
+  `mise activate zsh` stays after them; `direnv hook zsh` stays after mise.
+- **Neovim is not mise-managed:** `run_onchange_after_15-neovim.sh.tmpl`
+  installs `/opt/nvim-<os>-<arch>` and `/usr/local/bin/nvim`. Do not add
+  `neovim` to mise.
+- **pnpm is retired:** bun is the mise-managed JS package manager. Do not
+  restore `PNPM_HOME`, pnpm completions, or a pnpm tool entry.
+- **direnv loads bare `.env`:** `direnv.toml` sets `[global] load_dotenv = true`;
+  `direnv allow` is still required.
+- **Secrets are chezmoi-native:** no `secrets.zsh`. Use `encrypted_` age files
+  or `.env.tmpl`; pre-commit blocks plaintext `*.env`, `key.txt`, `*.age`, and
+  common provider tokens.
+- **Claude and Codex guards differ:** Claude broadly blocks `.ssh` and env-like
+  references. Codex allows `~/.ssh/config`, `~/.ssh/config.d/*`, and top-level
+  `~/.ssh/*.pub`; it blocks SSH directories, unknown SSH filenames, and env-like
+  targets. Do not echo sensitive paths.
+- **Codex filesystem allowlist is exact:** write exact existing public-key paths,
+  not `~/.ssh/*.pub` globs.
+- **Codex hooks config:** use `[features].hooks = true`; remove/migrate
+  deprecated `codex_hooks`.
+- **Completion wiring is layered:** system packages, generated user-scope
+  completions, `completions.zsh` before oh-my-zsh, `bashcompinit` after compinit.
+- **Some personal environment hooks are intentional:** WSL2 Docker completion
+  cleanup, fcitx5 login setup, auth unlock/pinentry behavior, peon-ping aliases,
+  and Claude/Codex runtime policies are deliberate unless the relevant spec
+  changes first.
 
-zshrc sources `$DOTFILES/modules/*.zsh`, so editing the source in `home/dot_config/dotfiles/modules/` and re-running `dotfiles link` redeploys it.
+## Testing Notes
 
-## chezmoi run_once flow
-
-Ordering uses numeric prefixes:
-
-| Script                                       | Phase        | Trigger                            |
-|----------------------------------------------|--------------|------------------------------------|
-| `run_once_before_10-system-packages.sh.tmpl` | before apply | once                               |
-| `run_onchange_after_10-mise-install.sh.tmpl` | after apply  | whenever mise config hash changes  |
-| `run_once_after_20-ohmyzsh.sh.tmpl`          | after apply  | once                               |
-| `run_once_after_30-nvchad.sh.tmpl`           | after apply  | once                               |
-| `run_onchange_after_40-git-hooks.sh.tmpl`    | after apply  | whenever hook content hash changes |
-| `run_onchange_after_41-ssh-config-auth.sh.tmpl` | after apply | whenever ssh-agent module hash changes |
-| `run_onchange_after_42-gpg-agent-auth.sh.tmpl` | after apply | whenever gpg-agent config hash changes |
-| `run_once_after_50-default-shell.sh.tmpl`    | after apply  | once                               |
-| `run_onchange_after_60-claude-statusline.sh.tmpl` | after apply | whenever statusline wireup changes |
-| `run_onchange_after_61-claude-env.sh.tmpl`   | after apply  | whenever Claude env wireup changes |
-| `run_onchange_after_62-claude-security.sh.tmpl` | after apply | whenever Claude sensitive-file policy changes |
-| `run_onchange_after_63-codex-security.sh.tmpl` | after apply | whenever Codex sensitive-file policy changes |
-
-Go templates dispatch on `.chezmoi.os` (`darwin` / `linux`) and `.chezmoi.osRelease.id` (`ubuntu` / `debian` / `arch` / `fedora` / …).
-
-## Adding a distro
-
-Edit `home/run_once_before_10-system-packages.sh.tmpl` — add a new `install_<distro>()` function and an `else if` branch in the Go-template dispatch block. No other file to touch.
-
-## Adding a tool
-
-1. Edit `home/dot_config/mise/config.toml`, add the tool line.
-2. `dotfiles install` — the content hash in `run_onchange_after_10-mise-install.sh.tmpl` changes, chezmoi re-runs it, mise picks up the new tool.
-3. Optional: add the binary name to the `doctor` loop in `bin/dotfiles`.
-
-## Secrets
-
-Two chezmoi-native routes, no bespoke loader:
-
-- **age-encrypted files.** `dotfiles secrets-init` (idempotent) generates `~/.config/chezmoi/key.txt` and appends the `[age]` block to `chezmoi.toml`. Add files with `chezmoi add --encrypt <path>`; the source file is stored under an `encrypted_` prefix (ciphertext, safe to commit). The `age` package is installed on every distro branch of `run_once_before_10-system-packages.sh.tmpl`.
-- **Bitwarden (or other password managers) via templates.** A `*.env.tmpl` file can call chezmoi's built-in `{{ bitwardenFields "item" "name" }}` (or `onepassword`, `pass`, `keyring`, …) at apply time. Nothing secret lives in the repo — chezmoi refetches on every `apply`. Requires the chosen CLI to be installed and unlocked.
-
-The pre-commit hook at `home/dot_config/dotfiles/hooks/executable_pre-commit` blocks staged plaintext `*.env` (unless the path has `encrypted_` or the file ends `.env.tmpl`), age private keys (`key.txt`, `*.age`), and a bank of provider-token regexes.
-
-The Claude Code runtime guard at `home/dot_claude/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to `~/.ssh/`, `.env`, `.env.*`, `.envrc`, and `*.env*` without echoing the matched path. `home/run_onchange_after_62-claude-security.sh.tmpl` wires that hook into `UserPromptSubmit` and `PreToolUse`, adds matching `permissions.deny` entries, disables bypass permissions mode, and enables fail-closed sandboxing so Bash cannot silently read denied paths without filesystem isolation.
-
-The Codex runtime guard at `home/dot_codex/hooks/executable_sensitive-file-guard.sh` blocks direct prompt and tool references to env-like files and non-allowlisted `~/.ssh/*` targets without echoing the matched path. SSH config files and `~/.ssh/*.pub` public keys are allowlisted; directory reads and unknown SSH filenames remain blocked because private keys can use arbitrary names. `home/run_onchange_after_63-codex-security.sh.tmpl` enables Codex hooks, merges matching `~/.codex/hooks.json` entries, and writes a `dotfiles-sensitive` filesystem permission profile that allowlists SSH config paths and exact existing public-key files.
-
-## Testing
-
-```sh
-sh tests/test_smoke.sh                  # Structural + template-render smoke tests
-bats tests/bats                         # Behaviour tests (after mise install)
-dotfiles test                           # Full local test entrypoint
-chezmoi apply --dry-run --verbose       # Dry-run: show every change chezmoi would make
-dotfiles check                          # Same as above via the wrapper
-```
-
-Bats is the primary behaviour/integration test runner. It does not prove POSIX
-or zsh portability because Bats tests run under Bash, so pair Bats coverage
-with explicit parse/static gates (`sh -n`, rendered chezmoi templates, `zsh -n`,
-ShellCheck, and shfmt when available).
+- `dotfiles test` is the full local entrypoint; `tests/test_smoke.sh` is the
+  main suite for structure, rendered templates, parse gates, and spec decisions.
+- Bats runs under Bash; pair it with `sh -n`, rendered template checks, `zsh -n`,
+  ShellCheck, and shfmt where relevant.
+- Documentation-only AGENTS edits do not need a test run unless they change
+  command names, file paths, or documented test expectations.
