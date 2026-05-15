@@ -6,7 +6,7 @@
    - **Where specs live.** Non-trivial change → `specs/NNN-slug.md` (committed alongside the code change). Trivial fix (typo, one-liner, doc tweak) → spec may live inline in the commit message body under a `Spec:` section. When in doubt, write the file.
    - **Spec template.** `## Intent` · `## Acceptance criteria` (bulleted, each one testable) · `## Out of scope` · `## Affected files`.
    - **Interaction with TDD.** SDD does *not* replace TDD — it precedes it. Red-Green-Refactor still applies; the spec just answers "red against what?" before you write the failing test. If a spec and an existing test conflict, the spec wins: update the test.
-2. **TDD** — Write tests first, derived from the spec. Red → Green → Refactor.
+2. **TDD** — Apply only when implementing features or changing code. Write tests first, derived from the spec. Red → Green → Refactor. Documentation-only changes, wording updates, planning notes, and other non-code work do not require TDD.
 3. **Commit after each logical unit** — Don't batch. Commit proactively without waiting to be asked. A spec edit, a test edit, and an implementation edit are each a logical unit and may be separate commits.
 4. **English for all artifacts** — Code, commits, comments, docs, specs. User conversation is the only exception.
 
