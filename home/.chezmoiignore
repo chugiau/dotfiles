@@ -3,3 +3,37 @@
 # Everything in home/ is a chezmoi source by convention; this file is the
 # escape hatch for anything that lives here for documentation or tooling
 # but must not land in the user's $HOME.
+
+{{ if eq .chezmoi.os "windows" -}}
+# Native Windows uses PowerShell run scripts and profile wiring. Keep the
+# Unix shell runtime out of a Windows home directory and avoid executing
+# POSIX run scripts during `chezmoi apply`.
+.zshenv
+.zprofile
+.zshrc
+.tmux.conf
+.gnupg/
+dot_zshenv.tmpl
+dot_zprofile
+dot_zshrc
+empty_dot_tmux.conf
+private_dot_gnupg/
+dot_config/dotfiles/modules/
+dot_config/dotfiles/bin/
+run_once_before_10-system-packages.sh.tmpl
+run_onchange_after_10-mise-install.sh.tmpl
+run_onchange_after_15-neovim.sh.tmpl
+run_onchange_after_16-completions.sh.tmpl
+run_once_after_20-ohmyzsh.sh.tmpl
+run_once_after_30-nvchad.sh.tmpl
+run_onchange_after_41-ssh-config-auth.sh.tmpl
+run_onchange_after_42-gpg-agent-auth.sh.tmpl
+run_once_after_50-default-shell.sh.tmpl
+{{ else -}}
+# Non-Windows hosts keep the zsh/POSIX flow and ignore native Windows
+# PowerShell startup files and Windows-only run scripts.
+Documents/PowerShell/
+dot_config/dotfiles/powershell/
+run_once_before_05-windows-packages.ps1.tmpl
+run_onchange_after_11-mise-windows.ps1.tmpl
+{{ end -}}

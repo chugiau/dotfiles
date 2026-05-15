@@ -1,0 +1,42 @@
+# Materialise every mise-managed tool on native Windows.
+#
+# mise-config-hash: {{ include "dot_config/mise/config.toml" | sha256sum }}
+
+$ErrorActionPreference = 'Stop'
+
+if (-not $IsWindows) {
+    Write-Host '[mise-windows] non-Windows host - skipping'
+    return
+}
+
+function Add-PathEntry {
+    param([string]$Path)
+
+    if ($Path -and (Test-Path -LiteralPath $Path)) {
+        $separator = [IO.Path]::PathSeparator
+        $entries = $env:Path -split [regex]::Escape([string]$separator)
+        if ($entries -notcontains $Path) {
+            $env:Path = "$Path$separator$env:Path"
+        }
+    }
+}
+
+Add-PathEntry (Join-Path $HOME '.local\bin')
+Add-PathEntry (Join-Path $HOME '.local\share\mise\shims')
+if ($env:LOCALAPPDATA) {
+    Add-PathEntry (Join-Path $env:LOCALAPPDATA 'mise\shims')
+}
+
+if (-not (Get-Command mise -ErrorAction SilentlyContinue)) {
+    Write-Host '[mise-windows] mise not in PATH - skipping install'
+    return
+}
+
+Write-Host '[mise-windows] mise install'
+mise install
+
+Write-Host '[mise-windows] mise doctor'
+mise doctor
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning '[mise-windows] mise doctor reported issues - review output above'
+}

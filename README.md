@@ -2,11 +2,11 @@
 
 Personal development environment provisioned with [chezmoi](https://www.chezmoi.io/) and [mise](https://mise.jdx.dev/).
 
-One command on a fresh machine sets up shell, editor, CLI tools and config — on macOS or Linux (including WSL2). Idempotent and safe to re-run.
+One command on a fresh machine sets up shell, editor, CLI tools and config — on macOS, Linux, WSL2, or native Windows. Idempotent and safe to re-run.
 
 ## Quick Start
 
-**First-time setup** on a fresh machine — the bootstrap script assumes nothing beyond a POSIX `sh` and network access:
+**First-time setup on macOS / Linux / WSL2** — the POSIX bootstrap assumes nothing beyond a POSIX `sh` and network access:
 
 ```sh
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/<you>/dotfiles/main/bootstrap.sh)"
@@ -20,6 +20,16 @@ sh ~/.dotfiles/bootstrap.sh
 ```
 
 `bootstrap.sh` installs the system prereqs (curl, git, ca-certs), drops chezmoi and mise into `~/.local/bin`, writes the chezmoi config, and runs `chezmoi apply`. Everything else — the full system package list, `mise install`, oh-my-zsh + powerlevel10k, NvChad starter, git hooks, `chsh -s zsh` — is handled by the chezmoi `run_once_*` scripts.
+
+**First-time setup on native Windows** — run PowerShell as your normal user:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+git clone https://github.com/<you>/dotfiles.git $HOME\.dotfiles
+pwsh -NoProfile -ExecutionPolicy Bypass -File $HOME\.dotfiles\bootstrap.ps1
+```
+
+`bootstrap.ps1` uses winget for native prerequisites (`Git.Git`, `twpayne.chezmoi`, `jdx.mise`), writes the same chezmoi config under `~/.config/chezmoi/chezmoi.toml`, and runs `chezmoi apply`. On Windows, chezmoi deploys a guarded PowerShell profile and PowerShell-native run scripts; the Unix zsh and POSIX run scripts are ignored by `home/.chezmoiignore`.
 
 **After initial setup**, use the CLI wrapper:
 
@@ -35,6 +45,14 @@ dotfiles edit             # Open the repo in $EDITOR
 
 > Add `~/.dotfiles/bin` to your `PATH` to use `dotfiles` directly.
 
+On Windows, use the native wrapper:
+
+```powershell
+.\bin\dotfiles.ps1 install
+.\bin\dotfiles.ps1 doctor
+.\bin\dotfiles.ps1 test
+```
+
 ## What Gets Installed
 
 | Layer | Managed by | Contents |
@@ -47,6 +65,8 @@ dotfiles edit             # Open the repo in $EDITOR
 | **Editor config** | run_once scripts | [NvChad](https://nvchad.com/) starter |
 | **Dotfiles** | [chezmoi](https://www.chezmoi.io/) | zshrc, zprofile, gitconfig, tmux.conf, Claude statusline, ... |
 
+On native Windows, winget covers only native prerequisites and helpers such as Git, chezmoi, mise, PowerShell, Git LFS, GnuPG, age, jq, and oh-my-posh. The shared developer CLI set remains mise-managed through `home/dot_config/mise/config.toml`.
+
 ## Supported Platforms
 
 | Platform | Status |
@@ -56,6 +76,7 @@ dotfiles edit             # Open the repo in $EDITOR
 | Arch Linux / Manjaro / EndeavourOS | Supported |
 | Fedora | Supported |
 | WSL2 | Supported (auto-detected via `uname` + `/etc/os-release`) |
+| Windows 10/11 + PowerShell | Supported |
 
 Adding a distro is just one new `else if` in `home/run_once_before_10-system-packages.sh.tmpl`.
 
@@ -65,8 +86,11 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
 ~/.dotfiles/
 ├── .chezmoiroot                       # contains "home" — chezmoi source root
 ├── bootstrap.sh                       # POSIX sh bootstrap (zero-dependency)
+├── bootstrap.ps1                      # native Windows bootstrap (winget + chezmoi + mise)
 ├── bin/dotfiles                       # POSIX sh CLI wrapper
+├── bin/dotfiles.ps1                   # native Windows PowerShell CLI wrapper
 ├── tests/test_smoke.sh                # POSIX sh structural smoke tests
+├── tests/windows_smoke.ps1            # Windows PowerShell structural smoke tests
 │
 └── home/                              # chezmoi source — mirrors $HOME
     ├── .chezmoiignore
@@ -89,6 +113,7 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── dot_config/
     │   ├── mise/config.toml                   # → ~/.config/mise/config.toml
     │   └── dotfiles/
+    │       ├── powershell/profile.ps1         # → ~/.config/dotfiles/powershell/profile.ps1
     │       ├── bin/
     │       │   └── executable_pinentry-auto      # GUI pinentry with TTY fallback
     │       ├── modules/                       # shell modules sourced by zshrc
@@ -104,8 +129,13 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── private_dot_gnupg/
     │   └── gpg-agent.conf.tmpl                # → ~/.gnupg/gpg-agent.conf
     │
+    ├── Documents/PowerShell/
+    │   └── Microsoft.PowerShell_profile.ps1   # → ~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1
+    │
+    ├── run_once_before_05-windows-packages.ps1.tmpl # winget native prereqs
     ├── run_once_before_10-system-packages.sh.tmpl  # apt/pacman/dnf/brew
     ├── run_onchange_after_10-mise-install.sh.tmpl  # mise install (hash-gated)
+    ├── run_onchange_after_11-mise-windows.ps1.tmpl # Windows mise install (hash-gated)
     ├── run_once_after_20-ohmyzsh.sh.tmpl           # omz + powerlevel10k
     ├── run_once_after_30-nvchad.sh.tmpl            # NvChad starter + Lazy sync
     ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit
@@ -300,7 +330,20 @@ dotfiles check
 chezmoi apply --dry-run --verbose
 ```
 
+```powershell
+# Native Windows test entrypoint. Runs Windows smoke first, then POSIX/Bats
+# only when those commands exist on PATH.
+.\bin\dotfiles.ps1 test
+
+# Windows structural smoke tests; no winget, chezmoi, mise, or network needed.
+pwsh -NoProfile -File tests\windows_smoke.ps1
+```
+
 `tests/test_smoke.sh` verifies: the source tree layout, POSIX-sh parseability of `bootstrap.sh` and `bin/dotfiles`, bashism absence, Ansible absence, and (if `chezmoi` is on PATH) that every `run_*.sh.tmpl` renders without Go-template errors.
+
+`tests/windows_smoke.ps1` verifies the native Windows structure, parses the
+PowerShell bootstrap/profile/run scripts, and checks that the Windows platform
+split is represented in `home/.chezmoiignore`.
 
 Bats is the primary behaviour/integration test runner for shell scripts in
 this repo. It is intentionally paired with explicit portability gates because

@@ -1,0 +1,52 @@
+# Install native Windows prerequisites and helpers with winget.
+
+$ErrorActionPreference = 'Stop'
+
+if (-not $IsWindows) {
+    Write-Host '[windows-packages] non-Windows host - skipping'
+    return
+}
+
+function Test-Command {
+    param([string]$Name)
+    $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Install-WingetPackage {
+    param(
+        [string]$Id,
+        [string]$Command,
+        [string]$Name,
+        [switch]$Required
+    )
+
+    if ($Command -and (Test-Command $Command)) {
+        Write-Host "[windows-packages] $Name already installed"
+        return
+    }
+
+    if (-not (Test-Command winget)) {
+        if ($Required) {
+            throw 'winget is not available. Install App Installer, then re-run chezmoi apply.'
+        }
+        Write-Warning "[windows-packages] winget is not available - skipping $Name"
+        return
+    }
+
+    Write-Host "[windows-packages] installing $Name ($Id)"
+    winget install --id $Id --exact --source winget --accept-package-agreements --accept-source-agreements
+}
+
+Install-WingetPackage -Id Git.Git -Command git -Name Git -Required
+Install-WingetPackage -Id GitHub.GitLFS -Command git-lfs -Name 'Git LFS'
+Install-WingetPackage -Id Microsoft.PowerShell -Command pwsh -Name PowerShell
+Install-WingetPackage -Id twpayne.chezmoi -Command chezmoi -Name chezmoi -Required
+Install-WingetPackage -Id jdx.mise -Command mise -Name mise -Required
+Install-WingetPackage -Id GnuPG.GnuPG -Command gpg -Name GnuPG
+Install-WingetPackage -Id FiloSottile.age -Command age-keygen -Name age
+Install-WingetPackage -Id jqlang.jq -Command jq -Name jq
+Install-WingetPackage -Id JanDeDobbeleer.OhMyPosh -Command oh-my-posh -Name oh-my-posh
+
+if (Test-Command git) {
+    git lfs install --skip-repo | Out-Null
+}

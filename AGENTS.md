@@ -24,15 +24,20 @@ implementation details instead of treating this as a README.
 
 `sh bootstrap.sh`, `dotfiles install`, `dotfiles update`, `dotfiles link`,
 `dotfiles check`, `dotfiles doctor`, `dotfiles test`, `sh tests/test_smoke.sh`,
-`bats tests/bats`.
+`bats tests/bats`. On native Windows use `pwsh -NoProfile -File bootstrap.ps1`,
+`pwsh -NoProfile -File bin/dotfiles.ps1 test`, and
+`pwsh -NoProfile -File tests/windows_smoke.ps1`.
 
 ## Repo Map
 
 - `bootstrap.sh`: POSIX sh bootstrap; installs prereqs, chezmoi, mise, clones
   this repo, writes chezmoi config, runs `chezmoi apply`.
+- `bootstrap.ps1`: native Windows bootstrap; uses winget for Git, chezmoi, and
+  mise, writes chezmoi config, runs `chezmoi apply`.
 - `.chezmoiroot`: points chezmoi at `home/`.
 - `home/`: chezmoi source tree, materialized into `$HOME`.
 - `bin/dotfiles`: POSIX sh CLI wrapper.
+- `bin/dotfiles.ps1`: native Windows PowerShell CLI wrapper.
 - `home/dot_config/mise/config.toml`: mise-managed CLI tool manifest.
 - `home/dot_config/dotfiles/modules/`: source for shell modules deployed to
   `$DOTFILES/modules/`.
@@ -45,6 +50,10 @@ implementation details instead of treating this as a README.
 - **Runtime/source split:** `$DOTFILES_REPO=~/.dotfiles`; `$DOTFILES=~/.config/dotfiles`.
   Shell startup sources `$DOTFILES`, not repo files. Edit
   `home/dot_config/dotfiles/`, then run `dotfiles link` or `chezmoi apply`.
+- **Windows runtime split:** PowerShell loads
+  `~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1`, which only sources
+  `$HOME/.config/dotfiles/powershell/profile.ps1`. Keep Windows startup logic in
+  `home/dot_config/dotfiles/powershell/`.
 - **Shell file split:** `dot_zshenv.tmpl` is pure env for every zsh invocation.
   Put login side effects in `dot_zprofile`; interactive setup in `dot_zshrc`.
 - **BROWSER is apply-time:** `dot_zshenv.tmpl` renders `open`, `wslview`, or
@@ -75,11 +84,16 @@ implementation details instead of treating this as a README.
   cleanup, fcitx5 login setup, auth unlock/pinentry behavior, peon-ping aliases,
   and Claude/Codex runtime policies are deliberate unless the relevant spec
   changes first.
+- **Windows chezmoi split:** `home/.chezmoiignore` keeps Unix run scripts out of
+  native Windows applies and keeps Windows PowerShell files out of Unix applies.
+  Update it when adding platform-specific run scripts.
 
 ## Testing Notes
 
 - `dotfiles test` is the full local entrypoint; `tests/test_smoke.sh` is the
   main suite for structure, rendered templates, parse gates, and spec decisions.
+- On native Windows, `bin/dotfiles.ps1 test` runs `tests/windows_smoke.ps1` and
+  skips POSIX/Bats checks when `sh` or `bats` are not installed.
 - Bats runs under Bash; pair it with `sh -n`, rendered template checks, `zsh -n`,
   ShellCheck, and shfmt where relevant.
 - Documentation-only AGENTS edits do not need a test run unless they change

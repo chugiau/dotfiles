@@ -91,11 +91,14 @@ check_exists ".editorconfig"
 check_exists ".gitattributes"
 check_exists ".gitignore"
 check_exists "bootstrap.sh"
+check_exists "bootstrap.ps1"
 check_exists "bin/dotfiles"
+check_exists "bin/dotfiles.ps1"
 check_exists "README.md"
 check_exists "CLAUDE.md"
 check_exists "AGENTS.md"
 check_exists "tests/bats/dotfiles_cli.bats"
+check_exists "tests/windows_smoke.ps1"
 for f in .editorconfig .gitattributes .gitignore; do
     if [ -s "$SCRIPT_DIR/$f" ]; then
         ok "non-empty: $f"
@@ -150,6 +153,7 @@ echo "[home/ source tree]"
 check_exists "home/dot_zshrc"
 check_exists "home/dot_zprofile"
 check_exists "home/dot_zshenv.tmpl"
+check_exists "home/.chezmoiignore"
 check_exists "home/dot_gitconfig"
 check_exists "home/empty_dot_gitignore"
 check_exists "home/empty_dot_tmux.conf"
@@ -163,6 +167,8 @@ check_exists "home/dot_config/dotfiles/modules/pkg-quarantine.zsh"
 check_exists "home/dot_config/dotfiles/modules/ssh-agent.zsh"
 check_exists "home/dot_config/dotfiles/bin/executable_pinentry-auto"
 check_exists "home/dot_config/dotfiles/hooks/executable_pre-commit"
+check_exists "home/dot_config/dotfiles/powershell/profile.ps1"
+check_exists "home/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"
 check_exists "home/private_dot_gnupg/gpg-agent.conf.tmpl"
 check_exists "home/dot_claude/executable_statusline-command.sh"
 check_exists "home/dot_claude/hooks/executable_sensitive-file-guard.sh"
@@ -172,7 +178,9 @@ echo ""
 # ── chezmoi run_once scripts ────────────────────────────────────────────────
 echo "[run_once scripts]"
 check_exists "home/run_once_before_10-system-packages.sh.tmpl"
+check_exists "home/run_once_before_05-windows-packages.ps1.tmpl"
 check_exists "home/run_onchange_after_10-mise-install.sh.tmpl"
+check_exists "home/run_onchange_after_11-mise-windows.ps1.tmpl"
 check_exists "home/run_onchange_after_15-neovim.sh.tmpl"
 check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
@@ -193,6 +201,40 @@ check_sh_parse "bin/dotfiles"
 check_sh_parse "tests/test_smoke.sh"
 check_sh_parse "home/dot_claude/hooks/executable_sensitive-file-guard.sh"
 check_sh_parse "home/dot_codex/hooks/executable_sensitive-file-guard.sh"
+echo ""
+
+# ── Windows PowerShell support (spec 033) ──────────────────────────────────
+echo "[Windows dotfiles]"
+if grep -q 'winget install --id \$Id' "$SCRIPT_DIR/bootstrap.ps1" &&
+    grep -q 'Git.Git' "$SCRIPT_DIR/bootstrap.ps1" &&
+    grep -q 'twpayne.chezmoi' "$SCRIPT_DIR/bootstrap.ps1" &&
+    grep -q 'jdx.mise' "$SCRIPT_DIR/bootstrap.ps1"; then
+    ok "bootstrap.ps1 installs Windows prerequisites through winget"
+else
+    fail "bootstrap.ps1 does not install Git, chezmoi, and mise through winget"
+fi
+if grep -q 'chezmoi apply' "$SCRIPT_DIR/bootstrap.ps1"; then
+    ok "bootstrap.ps1 runs chezmoi apply"
+else
+    fail "bootstrap.ps1 does not run chezmoi apply"
+fi
+if grep -q 'tests/windows_smoke.ps1' "$SCRIPT_DIR/bin/dotfiles.ps1"; then
+    ok "bin/dotfiles.ps1 test runs the Windows smoke suite"
+else
+    fail "bin/dotfiles.ps1 test does not run the Windows smoke suite"
+fi
+if grep -q 'mise activate pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1" &&
+    grep -q 'direnv hook pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
+    ok "PowerShell profile wires mise and direnv"
+else
+    fail "PowerShell profile does not wire mise and direnv"
+fi
+if grep -q 'run_once_before_05-windows-packages.ps1.tmpl' "$SCRIPT_DIR/home/.chezmoiignore" &&
+    grep -q 'run_once_before_10-system-packages.sh.tmpl' "$SCRIPT_DIR/home/.chezmoiignore"; then
+    ok ".chezmoiignore splits Windows and Unix run scripts"
+else
+    fail ".chezmoiignore does not split Windows and Unix run scripts"
+fi
 echo ""
 
 # ── Bashism scans ───────────────────────────────────────────────────────────
