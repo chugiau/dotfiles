@@ -10,7 +10,7 @@
 
 [tools]
 bat     = "latest"
-eza     = "latest"
+"aqua:eza-community/eza" = "latest"
 lazygit = "latest"
 glow    = "latest"
 ripgrep = "latest"

@@ -70,6 +70,21 @@ function Check-Contains {
     }
 }
 
+function Check-NotContains {
+    param(
+        [string]$Path,
+        [string]$Needle,
+        [string]$Message
+    )
+
+    $content = Get-Content -LiteralPath (Join-RepoPath $Path) -Raw
+    if ($content.Contains($Needle)) {
+        Fail $Message
+    } else {
+        Ok $Message
+    }
+}
+
 Write-Host 'Windows smoke tests: chezmoi + mise dotfiles'
 Write-Host ''
 
@@ -109,6 +124,13 @@ if (Test-Path -LiteralPath (Join-RepoPath 'bootstrap.ps1')) {
     Check-Contains 'bootstrap.ps1' 'twpayne.chezmoi' 'bootstrap.ps1 declares the chezmoi winget package'
     Check-Contains 'bootstrap.ps1' 'jdx.mise' 'bootstrap.ps1 declares the mise winget package'
     Check-Contains 'bootstrap.ps1' 'chezmoi apply' 'bootstrap.ps1 runs chezmoi apply'
+}
+Write-Host ''
+
+Write-Host '[mise manifest]'
+if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/mise/config.toml')) {
+    Check-Contains 'home/dot_config/mise/config.toml' '"aqua:eza-community/eza" = "latest"' 'mise manifest installs eza through aqua'
+    Check-NotContains 'home/dot_config/mise/config.toml' 'eza     = "latest"' 'mise manifest does not use bare eza shorthand'
 }
 Write-Host ''
 

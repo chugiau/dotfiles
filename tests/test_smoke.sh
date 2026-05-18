@@ -383,6 +383,27 @@ if awk '
 else
     fail "mise config does not declare bun under [tools]"
 fi
+# eza must use the aqua backend so native Windows installs pull the
+# upstream binary instead of resolving the bare shorthand to cargo:eza,
+# which requires a Rust toolchain that these dotfiles do not install.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*"aqua:eza-community\/eza"[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares eza through aqua backend"
+else
+    fail "mise config does not declare eza through aqua backend (spec 034)"
+fi
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*eza[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    fail "mise config still declares bare eza shorthand (spec 034)"
+else
+    ok "mise config does not declare bare eza shorthand"
+fi
 # node must be declared so `node`, `npm`, and `npx` ship on every
 # machine via mise shims (spec 006 — pinned to the LTS alias so
 # `dotfiles update` rides every LTS point release automatically).

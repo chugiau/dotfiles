@@ -213,7 +213,7 @@ human, and successful unlocks are reused for the bounded cache window.
 ```toml
 [tools]
 bat     = "latest"
-eza     = "latest"
+"aqua:eza-community/eza" = "latest"
 lazygit = "latest"
 glow    = "latest"
 ripgrep = "latest"
