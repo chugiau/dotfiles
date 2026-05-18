@@ -122,8 +122,12 @@ Write-Host ''
 
 Write-Host '[chezmoi platform split]'
 if (Test-Path -LiteralPath (Join-RepoPath 'home/.chezmoiignore')) {
-    Check-Contains 'home/.chezmoiignore' 'run_once_before_05-windows-packages.ps1.tmpl' 'non-Windows ignores Windows run scripts'
-    Check-Contains 'home/.chezmoiignore' 'run_once_before_10-system-packages.sh.tmpl' 'Windows ignores Unix run scripts'
+    Check-Contains 'home/.chezmoiignore' '05-windows-packages.ps1' 'non-Windows ignores Windows package script by target name'
+    Check-Contains 'home/.chezmoiignore' '11-mise-windows.ps1' 'non-Windows ignores Windows mise script by target name'
+    Check-Contains 'home/.chezmoiignore' '10-system-packages.sh' 'Windows ignores Unix package script by target name'
+    Check-Contains 'home/.chezmoiignore' '63-codex-security.sh' 'Windows ignores Unix agent script by target name'
+    Check-Contains 'home/.chezmoiignore' '.config/dotfiles/powershell/' 'non-Windows ignores PowerShell module by target path'
+    Check-Contains 'home/.chezmoiignore' '.config/dotfiles/modules/' 'Windows ignores zsh modules by target path'
 }
 Write-Host ''
 

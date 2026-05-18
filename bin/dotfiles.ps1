@@ -121,7 +121,7 @@ function Invoke-Test {
 
     Write-Host '[windows smoke]'
     try {
-        Invoke-External -FilePath $powerShell -ArgumentList @('-NoProfile', '-File', (Join-Path $RepoRoot 'tests\windows_smoke.ps1'))
+        Invoke-External -FilePath $powerShell -ArgumentList @('-NoProfile', '-File', (Join-Path $RepoRoot 'tests/windows_smoke.ps1'))
         Write-Ok 'Windows smoke tests passed'
     } catch {
         Write-Fail "Windows smoke tests failed: $_"

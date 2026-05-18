@@ -23,6 +23,10 @@ not appropriate on a Windows host.
   scripts instead of Unix shell/bootstrap scripts.
 - Non-Windows `chezmoi apply` ignores Windows-only PowerShell profile and run
   scripts.
+- `home/.chezmoiignore` uses chezmoi target paths, not source attribute names:
+  run scripts are ignored by their generated script names such as
+  `05-windows-packages.ps1`, and configured directories use target paths such
+  as `.config/dotfiles/powershell/`.
 - Tests include a PowerShell smoke suite that parses Windows scripts and checks
   the expected structure without requiring winget, chezmoi, mise, or network
   access.

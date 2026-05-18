@@ -13,27 +13,27 @@
 .zshrc
 .tmux.conf
 .gnupg/
-dot_zshenv.tmpl
-dot_zprofile
-dot_zshrc
-empty_dot_tmux.conf
-private_dot_gnupg/
-dot_config/dotfiles/modules/
-dot_config/dotfiles/bin/
-run_once_before_10-system-packages.sh.tmpl
-run_onchange_after_10-mise-install.sh.tmpl
-run_onchange_after_15-neovim.sh.tmpl
-run_onchange_after_16-completions.sh.tmpl
-run_once_after_20-ohmyzsh.sh.tmpl
-run_once_after_30-nvchad.sh.tmpl
-run_onchange_after_41-ssh-config-auth.sh.tmpl
-run_onchange_after_42-gpg-agent-auth.sh.tmpl
-run_once_after_50-default-shell.sh.tmpl
+.config/dotfiles/modules/
+.config/dotfiles/bin/
+10-system-packages.sh
+10-mise-install.sh
+15-neovim.sh
+16-completions.sh
+20-ohmyzsh.sh
+30-nvchad.sh
+40-git-hooks.sh
+41-ssh-config-auth.sh
+42-gpg-agent-auth.sh
+50-default-shell.sh
+60-claude-statusline.sh
+61-claude-env.sh
+62-claude-security.sh
+63-codex-security.sh
 {{ else -}}
 # Non-Windows hosts keep the zsh/POSIX flow and ignore native Windows
 # PowerShell startup files and Windows-only run scripts.
 Documents/PowerShell/
-dot_config/dotfiles/powershell/
-run_once_before_05-windows-packages.ps1.tmpl
-run_onchange_after_11-mise-windows.ps1.tmpl
+.config/dotfiles/powershell/
+05-windows-packages.ps1
+11-mise-windows.ps1
 {{ end -}}

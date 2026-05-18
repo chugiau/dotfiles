@@ -229,11 +229,19 @@ if grep -q 'mise activate pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell
 else
     fail "PowerShell profile does not wire mise and direnv"
 fi
-if grep -q 'run_once_before_05-windows-packages.ps1.tmpl' "$SCRIPT_DIR/home/.chezmoiignore" &&
-    grep -q 'run_once_before_10-system-packages.sh.tmpl' "$SCRIPT_DIR/home/.chezmoiignore"; then
-    ok ".chezmoiignore splits Windows and Unix run scripts"
+if grep -q '^05-windows-packages\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
+    grep -q '^11-mise-windows\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
+    grep -q '^10-system-packages\.sh$' "$SCRIPT_DIR/home/.chezmoiignore" &&
+    grep -q '^63-codex-security\.sh$' "$SCRIPT_DIR/home/.chezmoiignore"; then
+    ok ".chezmoiignore splits Windows and Unix run scripts by target script name"
 else
-    fail ".chezmoiignore does not split Windows and Unix run scripts"
+    fail ".chezmoiignore does not split Windows and Unix run scripts by target script name"
+fi
+if grep -q '^\.config/dotfiles/powershell/$' "$SCRIPT_DIR/home/.chezmoiignore" &&
+    grep -q '^\.config/dotfiles/modules/$' "$SCRIPT_DIR/home/.chezmoiignore"; then
+    ok ".chezmoiignore uses target paths for dot_config directories"
+else
+    fail ".chezmoiignore does not use target paths for dot_config directories"
 fi
 echo ""
 
@@ -294,6 +302,16 @@ echo ""
 # ── Optional: chezmoi-based verification ────────────────────────────────────
 if command -v chezmoi >/dev/null 2>&1; then
     echo "[chezmoi]"
+    ignored="$(chezmoi ignored -S "$SCRIPT_DIR/home" 2>/dev/null || true)"
+    if printf '%s\n' "$ignored" | grep -q '^05-windows-packages\.ps1$' &&
+        printf '%s\n' "$ignored" | grep -q '^11-mise-windows\.ps1$' &&
+        printf '%s\n' "$ignored" | grep -q '^\.config/dotfiles/powershell$'; then
+        ok "non-Windows chezmoi ignore excludes Windows target scripts and profile module"
+    else
+        fail "non-Windows chezmoi ignore excludes Windows target scripts and profile module"
+        printf '%s\n' "$ignored" >&2
+    fi
+
     # Render each template with the repo's source dir so `include` calls
     # (which are relative to chezmoi's sourceDir) can resolve.  Then
     # sh -n the rendered output so we catch POSIX-sh syntax errors
