@@ -80,9 +80,13 @@ if (Get-Command mise -ErrorAction SilentlyContinue) {
     }
 }
 
-if (Get-Command direnv -ErrorAction SilentlyContinue) {
+$direnvCommand = Get-Command direnv.exe -ErrorAction SilentlyContinue
+if ($direnvCommand) {
     try {
-        (& direnv hook pwsh) | Out-String | Invoke-Expression
+        $direnvHook = (& $direnvCommand.Source hook pwsh) | Out-String
+        if (-not [string]::IsNullOrWhiteSpace($direnvHook)) {
+            Invoke-Expression $direnvHook
+        }
     } catch {
         Write-Warning "direnv hook failed: $($_.Exception.Message)"
     }

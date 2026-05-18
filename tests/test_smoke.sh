@@ -224,10 +224,17 @@ else
     fail "bin/dotfiles.ps1 test does not run the Windows smoke suite"
 fi
 if grep -q 'mise activate pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1" &&
-    grep -q 'direnv hook pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
+    grep -q 'hook pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
     ok "PowerShell profile wires mise and direnv"
 else
     fail "PowerShell profile does not wire mise and direnv"
+fi
+if grep -q 'direnv.direnv' "$SCRIPT_DIR/home/run_once_before_05-windows-packages.ps1.tmpl" &&
+    grep -q 'Get-Command direnv.exe' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1" &&
+    grep -q 'IsNullOrWhiteSpace' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
+    ok "PowerShell profile uses native Windows direnv with empty-hook guard"
+else
+    fail "PowerShell profile does not guard native Windows direnv hook"
 fi
 if grep -q '^05-windows-packages\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
     grep -q '^11-mise-windows\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&

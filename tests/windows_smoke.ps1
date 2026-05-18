@@ -124,6 +124,7 @@ if (Test-Path -LiteralPath (Join-RepoPath 'bootstrap.ps1')) {
     Check-Contains 'bootstrap.ps1' 'twpayne.chezmoi' 'bootstrap.ps1 declares the chezmoi winget package'
     Check-Contains 'bootstrap.ps1' 'jdx.mise' 'bootstrap.ps1 declares the mise winget package'
     Check-Contains 'bootstrap.ps1' 'chezmoi apply' 'bootstrap.ps1 runs chezmoi apply'
+    Check-Contains 'home/run_once_before_05-windows-packages.ps1.tmpl' 'direnv.direnv' 'Windows package setup installs native direnv'
 }
 Write-Host ''
 
@@ -137,7 +138,9 @@ Write-Host ''
 Write-Host '[PowerShell profile]'
 if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/dotfiles/powershell/profile.ps1')) {
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'mise activate pwsh' 'PowerShell profile activates mise'
-    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'direnv hook pwsh' 'PowerShell profile hooks direnv'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'hook pwsh' 'PowerShell profile hooks direnv'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'Get-Command direnv.exe' 'PowerShell profile prefers native direnv.exe'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'IsNullOrWhiteSpace' 'PowerShell profile skips empty direnv hook output'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'oh-my-posh init pwsh' 'PowerShell profile guards oh-my-posh'
 }
 Write-Host ''
