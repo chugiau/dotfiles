@@ -138,6 +138,8 @@ Write-Host ''
 Write-Host '[PowerShell profile]'
 if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/dotfiles/powershell/profile.ps1')) {
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'mise activate pwsh' 'PowerShell profile activates mise'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' '.local\share\mise\shims' 'PowerShell profile exposes user-scope mise shims'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'LOCALAPPDATA' 'PowerShell profile exposes native Windows mise shims'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'hook pwsh' 'PowerShell profile hooks direnv'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'Get-Command direnv.exe' 'PowerShell profile prefers native direnv.exe'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'IsNullOrWhiteSpace' 'PowerShell profile skips empty direnv hook output'

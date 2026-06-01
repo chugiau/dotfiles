@@ -229,6 +229,12 @@ if grep -q 'mise activate pwsh' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell
 else
     fail "PowerShell profile does not wire mise and direnv"
 fi
+if grep -qF "Join-Path \$HOME '.local\\share\\mise\\shims'" "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1" &&
+    grep -q 'LOCALAPPDATA' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
+    ok "PowerShell profile exposes mise shims for Windows IDEs"
+else
+    fail "PowerShell profile does not expose mise shims for Windows IDEs"
+fi
 if grep -q 'direnv.direnv' "$SCRIPT_DIR/home/run_once_before_05-windows-packages.ps1.tmpl" &&
     grep -q 'Get-Command direnv.exe' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1" &&
     grep -q 'IsNullOrWhiteSpace' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
@@ -598,6 +604,11 @@ if grep -q 'mise activate zsh' "$SCRIPT_DIR/home/dot_zshrc"; then
 else
     fail "dot_zshrc does not activate mise (eval \"\$(mise activate zsh)\")"
 fi
+if grep -q 'mise activate zsh --shims' "$SCRIPT_DIR/home/dot_zshrc"; then
+    fail "dot_zshrc uses shim-only mise activation (interactive shells need hook-env mode)"
+else
+    ok "dot_zshrc keeps interactive mise activation in hook-env mode"
+fi
 # The activation must be guarded so a machine without mise still loads.
 if awk '
     /mise activate zsh/ && prev ~ /command -v mise/ { found=1 }
@@ -736,6 +747,22 @@ if [ -f "$_zshenv" ]; then
     else
         fail "dot_zshenv does not prepend \$DOTFILES_REPO/shellscripts to PATH"
     fi
+    if awk '
+        $0 !~ /^[[:space:]]*#/ && /mise activate/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$_zshenv"; then
+        fail "dot_zshenv runs mise activate (should stay pure env)"
+    else
+        ok "dot_zshenv does not run mise activate"
+    fi
+    if awk '
+        $0 !~ /^[[:space:]]*#/ && /command -v mise/ { found = 1 }
+        END { exit(found ? 0 : 1) }
+    ' "$_zshenv"; then
+        fail "dot_zshenv probes for mise (should stay pure env)"
+    else
+        ok "dot_zshenv does not probe for mise"
+    fi
 fi
 echo ""
 
@@ -788,6 +815,30 @@ if grep -q '^eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv' "$_zprof"; t
     fail "dot_zprofile has an unguarded linuxbrew shellenv call"
 else
     ok "dot_zprofile has no unguarded linuxbrew shellenv call"
+fi
+if grep -q 'mise activate zsh --shims' "$_zprof"; then
+    ok "dot_zprofile activates mise shims for IDE-launched tools"
+else
+    fail "dot_zprofile does not activate mise shims for IDE-launched tools"
+fi
+if awk '
+    /if command -v mise >/ { in_guard = 1 }
+    in_guard && /mise activate zsh --shims/ { found = 1 }
+    in_guard && /^fi$/ { in_guard = 0 }
+    END { exit(found ? 0 : 1) }
+' "$_zprof"; then
+    ok "dot_zprofile guards mise shim activation"
+else
+    fail "dot_zprofile does not guard mise shim activation"
+fi
+if awk '
+    /shellenv zsh/ { brew_line = NR }
+    /mise activate zsh --shims/ { mise_line = NR }
+    END { exit(brew_line && mise_line && brew_line < mise_line ? 0 : 1) }
+' "$_zprof"; then
+    ok "dot_zprofile loads mise shims after Homebrew shellenv"
+else
+    fail "dot_zprofile does not load mise shims after Homebrew shellenv"
 fi
 echo ""
 
@@ -1117,7 +1168,6 @@ if [ -f "$_codex_guard" ]; then
     else
         fail "Codex guard does not block SSH directory prompt targets cleanly"
     fi
-
 
     _blocked_prompt=$(jq -cn --arg path "$_fake_key" \
         '{hook_event_name:"UserPromptSubmit", prompt:("Read " + $path + " for me.")}')

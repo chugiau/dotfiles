@@ -32,3 +32,13 @@ for _brew in /opt/homebrew/bin/brew /usr/local/bin/brew /home/linuxbrew/.linuxbr
     fi
 done
 unset _brew
+
+# mise shims for IDE/tool discovery (spec 036). Editors launched from
+# desktop sessions or login-shell children often resolve tools from PATH
+# without sourcing ~/.zshrc, so expose the shim directory from the login
+# profile. This complements, not replaces, the interactive
+# `mise activate zsh` hook in ~/.zshrc; arbitrary mise [env] values are
+# loaded when the shimmed tool runs.
+if command -v mise >/dev/null 2>&1; then
+    eval "$(mise activate zsh --shims)"
+fi
