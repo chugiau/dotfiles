@@ -464,6 +464,19 @@ if awk '
 else
     fail "mise config does not declare codex under [tools]"
 fi
+# gcloud must be declared so any existing Google Cloud CLI shim has an active
+# version during login-shell startup (spec 037). Without this, startup hooks or
+# completions that execute `gcloud` surface mise's "No version is set for shim"
+# error before the prompt is usable.
+if awk '
+    /^\[/                         { section = $0 }
+    section == "[tools]" && /^[[:space:]]*gcloud[[:space:]]*=/ { found = 1 }
+    END { exit(found ? 0 : 1) }
+' "$_misecfg"; then
+    ok "mise config declares gcloud under [tools]"
+else
+    fail "mise config does not declare gcloud under [tools] (spec 037)"
+fi
 # direnv must be declared so every machine ships the per-directory env
 # loader alongside the rest of the toolchain (spec 012 — aqua:direnv/direnv
 # backend pulls the static release binary).  The dot_zshrc hook + the
