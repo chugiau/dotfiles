@@ -41,6 +41,13 @@ extract_fields() {
     output_style_name=$(echo "${input}" | jq -r '.output_style.name // empty')
     thinking_enabled=$(echo "${input}" | jq -r '.thinking.enabled // empty')
     vim_mode=$(echo "${input}" | jq -r '.vim.mode // empty')
+
+    session_name=$(echo "${input}" | jq -r '.session_name // empty')
+    repo_owner=$(echo "${input}" | jq -r '.workspace.repo.owner // empty')
+    repo_name=$(echo "${input}" | jq -r '.workspace.repo.name // empty')
+    pr_number=$(echo "${input}" | jq -r '.pr.number // empty')
+    pr_review_state=$(echo "${input}" | jq -r '.pr.review_state // empty')
+    agent_name=$(echo "${input}" | jq -r '.agent.name // empty')
 }
 
 # file_mtime <path> — modification time as Unix epoch (Linux + macOS/BSD).

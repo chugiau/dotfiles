@@ -161,13 +161,17 @@ pct_color() {
 }
 
 # cache_pct_color <pct> — cache-hit colour (high = green, low = red).
+# Thresholds tuned for AI-agent workloads: 70-80% hit rate is achievable
+# and desirable (cache reads save ~90% token cost); requiring 90% for green
+# was too strict and produced yellow on healthy sessions.
+# ponytail: <25% red, <50% orange, <75% yellow, ≥75% green
 cache_pct_color() {
     local pct="${1:-0}"
-    if [[ "${pct}" -ge 90 ]]; then
+    if [[ "${pct}" -ge 75 ]]; then
         printf "%s" "${GREEN}"
-    elif [[ "${pct}" -ge 80 ]]; then
+    elif [[ "${pct}" -ge 50 ]]; then
         printf "%s" "${YELLOW}"
-    elif [[ "${pct}" -ge 40 ]]; then
+    elif [[ "${pct}" -ge 25 ]]; then
         printf "%s" "${ORANGE}"
     else
         printf "%s" "${RED}"

@@ -343,6 +343,52 @@ emit_thinking() {
     item_push "thinking" "${label}" "${w}" 3
 }
 
+# 🏷 <session_name> — shown only when the session has been renamed via /rename.
+emit_session_name() {
+    [[ -z "${session_name}" ]] && return
+    local short
+    short=$(truncate_name "${session_name}" 30)
+    local label="🏷 ${CYAN}${short}${RESET}"
+    local w=$((2 + 1 + ${#short}))
+    item_push "session_name" "${label}" "${w}" 1
+}
+
+# ⬡ <owner>/<repo> — GitHub repo identity when inside a git repo with a remote.
+emit_repo() {
+    [[ -z "${repo_owner}" ]] || [[ -z "${repo_name}" ]] && return
+    local s="${repo_owner}/${repo_name}"
+    local label="⬡ ${DIM}${s}${RESET}"
+    # ⬡ (2) + " " (1) + owner + "/" + repo
+    local w=$((2 + 1 + ${#s}))
+    item_push "repo" "${label}" "${w}" 2
+}
+
+# PR #<N> (<review_state>) — open PR for the current branch.
+emit_pr() {
+    [[ -z "${pr_number}" ]] && return
+    local color state_label
+    case "${pr_review_state}" in
+    approved) color="${GREEN}" ; state_label="approved" ;;
+    changes_requested) color="${RED}" ; state_label="changes" ;;
+    draft) color="${DIM}" ; state_label="draft" ;;
+    *) color="${YELLOW}" ; state_label="${pr_review_state:-open}" ;;
+    esac
+    local s="PR #${pr_number} (${state_label})"
+    local label="${color}${s}${RESET}"
+    item_push "pr" "${label}" "${#s}" 2
+}
+
+# 🤖 agent:<name> — shown when Claude is started with --agent flag.
+emit_agent() {
+    [[ -z "${agent_name}" ]] && return
+    local short
+    short=$(truncate_name "${agent_name}" 20)
+    local label="🤖 ${CYAN}agent:${short}${RESET}"
+    # 🤖 (2) + " agent:" (7) + name
+    local w=$((2 + 7 + ${#short}))
+    item_push "agent" "${label}" "${w}" 1
+}
+
 # VIM:<mode> — vim-editor mode badge; bold + colour by mode.
 emit_vim_mode() {
     [[ -z "${vim_mode}" ]] && return
@@ -365,6 +411,8 @@ emit_vim_mode() {
 emit_all() {
     emit_model
     emit_vim_mode
+    emit_agent
+    emit_session_name
     emit_folder
     emit_worktree
     emit_branch
@@ -375,6 +423,8 @@ emit_all() {
     emit_git_lines
     emit_total_tokens
     emit_subagents
+    emit_repo
+    emit_pr
     emit_ctx_bar
     emit_ctx_pct
     emit_five_hour
