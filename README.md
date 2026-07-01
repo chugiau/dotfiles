@@ -228,11 +228,11 @@ shellcheck = "latest"
 shfmt      = "latest"
 ```
 
-> `direnv` is wired into zsh via a hook in `home/dot_zshrc` that runs
-> after `mise activate`, and a global `home/dot_config/direnv/direnv.toml`
-> sets `[global] load_dotenv = true` so bare `.env` files activate
-> alongside `.envrc`. `direnv allow` is required per directory on first
-> entry — that is direnv's security model, not a bug.
+> `direnv` does a p10k-safe startup export before the instant-prompt block,
+> then wires its zsh hook in `home/dot_zshrc` after `mise activate`. A global
+> `home/dot_config/direnv/direnv.toml` sets `[global] load_dotenv = true` so
+> bare `.env` files activate alongside `.envrc`. `direnv allow` is required per
+> directory on first entry — that is direnv's security model, not a bug.
 
 > Neovim is **not** managed by mise — it ships from the upstream
 > pre-built tarball via `home/run_onchange_after_15-neovim.sh.tmpl` so
