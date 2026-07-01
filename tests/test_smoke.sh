@@ -2051,6 +2051,25 @@ else
 fi
 echo ""
 
+# ── Spec 038: p10k + direnv startup handshake ─────────────────────────────
+echo "[spec 038 — p10k direnv startup]"
+if grep -qF '(( ${+commands[direnv]} )) && emulate zsh -c "$(direnv export zsh)"' "$_zshrc"; then
+    ok "dot_zshrc exports direnv env before p10k using emulate zsh"
+else
+    fail "dot_zshrc does not run the p10k-safe direnv export"
+fi
+if awk '
+    /direnv export zsh/             { export_line = NR }
+    /p10k-instant-prompt/ && !p10k { p10k = NR }
+    /direnv hook zsh/               { hook_line = NR }
+    END { exit(export_line && p10k && hook_line && export_line < p10k && p10k < hook_line ? 0 : 1) }
+' "$_zshrc"; then
+    ok "direnv export runs before p10k and direnv hook stays after p10k"
+else
+    fail "direnv export/hook ordering conflicts with p10k startup"
+fi
+echo ""
+
 # ── Statusline module locations (spec 021 refactor) ────────────────────────
 # After spec 021 the helpers live under home/dot_claude/statusline/{core,data,
 # width,items,layout}.sh; the entrypoint is a thin orchestrator. The
