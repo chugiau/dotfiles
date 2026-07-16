@@ -6,12 +6,12 @@
 	format = openpgp
 	program = gpg
 [commit]
-	gpgSign = false
+	gpgSign = true
 [tag]
 	forceSignAnnotated = false
 [gpg "ssh"]
-	program = 
-	allowedSignersFile = 
+	program =
+	allowedSignersFile =
 [filter "lfs"]
 	required = true
 	clean = git-lfs clean -- %f
