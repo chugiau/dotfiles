@@ -62,6 +62,13 @@ if ($ompCommand) {
             (Join-Path $HOME '.config\oh-my-posh\default.omp.json')
         ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
 
+        if (-not $ompConfig -and $env:POSH_THEMES_PATH) {
+            $slimfatTheme = Join-Path $env:POSH_THEMES_PATH 'slimfat.omp.json'
+            if (Test-Path -LiteralPath $slimfatTheme) {
+                $ompConfig = $slimfatTheme
+            }
+        }
+
         if ($ompConfig) {
             oh-my-posh init pwsh --config $ompConfig | Invoke-Expression
         } else {

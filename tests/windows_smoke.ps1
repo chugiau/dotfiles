@@ -144,6 +144,7 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/dotfiles/powershell/p
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'Get-Command direnv.exe' 'PowerShell profile prefers native direnv.exe'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'IsNullOrWhiteSpace' 'PowerShell profile skips empty direnv hook output'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'oh-my-posh init pwsh' 'PowerShell profile guards oh-my-posh'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'slimfat.omp.json' 'PowerShell profile defaults to the slimfat oh-my-posh theme'
 }
 Write-Host ''
 

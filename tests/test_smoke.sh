@@ -242,6 +242,13 @@ if grep -q 'direnv.direnv' "$SCRIPT_DIR/home/run_once_before_05-windows-packages
 else
     fail "PowerShell profile does not guard native Windows direnv hook"
 fi
+# slimfat is the default oh-my-posh theme on native Windows (spec 039),
+# behind a user-dropped theme.omp.json / default.omp.json override.
+if grep -q 'slimfat.omp.json' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/profile.ps1"; then
+    ok "PowerShell profile defaults to the slimfat oh-my-posh theme"
+else
+    fail "PowerShell profile does not default to the slimfat oh-my-posh theme"
+fi
 if grep -q '^05-windows-packages\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
     grep -q '^11-mise-windows\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
     grep -q '^10-system-packages\.sh$' "$SCRIPT_DIR/home/.chezmoiignore" &&
