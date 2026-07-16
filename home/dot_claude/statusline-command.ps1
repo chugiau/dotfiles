@@ -44,7 +44,31 @@ $PSStyle.OutputRendering = 'Ansi'
 . (Join-Path $PSScriptRoot 'statusline-windows/Items.ps1')
 . (Join-Path $PSScriptRoot 'statusline-windows/Layout.ps1')
 
-$raw = $input | Out-String
+# Claude Code writes the JSON payload to this process's stdin as UTF-8. The
+# same code-page problem as the stdout rewrap above applies on the read
+# side: plain `$input | Out-String` decodes the redirected stdin pipe using
+# the OEM/ANSI code page, mangling any non-ASCII byte (e.g. CJK characters
+# in workspace.current_dir) before ConvertFrom-Json ever sees it. Reading
+# the raw stdin handle as UTF-8 sidesteps that.
+#
+# The fallback below deliberately does NOT reference the $input automatic
+# variable anywhere in this script (not even in unreachable code): merely
+# having `$input` appear in a -File script's source, when real OS-level
+# stdin is redirected into pwsh (exactly how Claude Code invokes this
+# script), makes PowerShell's host eagerly drain the process's real stdin
+# handle to populate $input's pipeline enumerator *before* the script body
+# runs. That leaves [Console]::OpenStandardInput() pointed at an
+# already-exhausted stream (ReadToEnd() silently returns ""), which failed
+# every field lookup below, not just the CJK ones. Malformed/empty stdin
+# already degrades gracefully further down (ConvertFrom-Json only runs on
+# non-whitespace $raw; Set-StatuslineFields treats missing fields as
+# empty/0/$null via `??`), so falling back to an empty string here is safe.
+$raw = try {
+    $stdinReader = [System.IO.StreamReader]::new([Console]::OpenStandardInput(), [System.Text.UTF8Encoding]::new($false))
+    $stdinReader.ReadToEnd()
+} catch {
+    ''
+}
 $data = [PSCustomObject]@{}
 if (-not [string]::IsNullOrWhiteSpace($raw)) {
     try {

@@ -53,9 +53,30 @@ change the port instead of it being a blind line-for-line translation:
 
 ### JSON + data extraction (`Data.ps1`)
 
-- `Get-StatuslineFields` reads stdin via `$input | Out-String |
-  ConvertFrom-Json` (the pattern Claude Code's own Windows statusline docs
-  use), wrapped in try/catch so malformed/empty stdin degrades gracefully
+- `statusline-command.ps1` reads stdin by rewrapping
+  `[Console]::OpenStandardInput()` in a UTF-8 (no-BOM) `StreamReader` and
+  calling `ReadToEnd()`, falling back to an empty string in a try/catch if
+  that fails. Plain `$input | Out-String` (the previous approach) decodes
+  the redirected stdin pipe using the process's OEM/ANSI code page (the
+  same `[Console]::InputEncoding` problem as the stdout case below,
+  mirrored on the read side) — any non-ASCII byte in the JSON payload (e.g.
+  a CJK character in `workspace.current_dir`) gets mis-decoded before
+  `ConvertFrom-Json` ever sees it, so no downstream fix (including the
+  stdout rewrap) can recover it. Reading the raw stdin handle as UTF-8
+  sidesteps the code page the same way the stdout fix does.
+- The fallback deliberately never references the `$input` automatic
+  variable anywhere in the script, including unreachable code. Merely
+  having `$input` appear in a `-File` script's source — even in a catch
+  block whose try never fails — makes PowerShell's host eagerly drain the
+  process's real stdin handle into `$input`'s pipeline enumerator before
+  the script body runs, whenever real OS-level stdin is redirected into
+  `pwsh` (exactly how Claude Code invokes this script). That leaves
+  `[Console]::OpenStandardInput()` pointed at an already-exhausted stream
+  (`ReadToEnd()` silently returns `""`), breaking every field, not just
+  CJK ones — this is what actually happened when `$input | Out-String` was
+  used as the fallback during development of this fix.
+- `Get-StatuslineFields` then runs `ConvertFrom-Json` on that UTF-8-decoded
+  text, wrapped in try/catch so malformed/empty stdin degrades gracefully
   instead of crashing, and exposes the same ~30 fields as `extract_fields`
   (model, cwd, project_dir, transcript_path, session_id, git_worktree,
   context-window usage, rate limits, cost/duration, effort/output-style/
@@ -146,6 +167,17 @@ change the port instead of it being a blind line-for-line translation:
   - 80 -> 2-5 lines containing the model name and `Context`.
   - 40 -> 1-5 lines containing the model name, and the P2 `Weekly` bar
     dropped.
+  - A CJK folder name in `workspace.current_dir` round-trips intact. This
+    assertion cannot use the same `$fixture | & pwsh ... -File ...`
+    pipeline-capture helper as the width assertions: capturing a native
+    command's output through PowerShell's pipeline decodes the child's
+    stdout bytes using the *outer* test session's own
+    `[Console]::OutputEncoding`, which reintroduces the code-page bug in
+    the test harness itself. It uses `Start-Process` with
+    `-RedirectStandardInput`/`-RedirectStandardOutput` pointed at temp
+    files instead — genuine OS-level file handles, no PowerShell string
+    decoding in between — matching how Claude Code (a Node process reading
+    raw bytes) actually captures this script's output.
 - No changes to `tests/test_smoke.sh` — the new files are Windows-only and
   ignored on POSIX via `.chezmoiignore`.
 

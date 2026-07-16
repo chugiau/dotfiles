@@ -235,6 +235,7 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-command.ps
     }
     Check-Contains 'home/dot_claude/statusline-command.ps1' '[System.Text.UTF8Encoding]' 'entrypoint builds a UTF-8 (no BOM) encoding for stdout'
     Check-Contains 'home/dot_claude/statusline-command.ps1' '[Console]::SetOut(' "entrypoint rewraps stdout as UTF-8 so Claude Code's redirected-pipe capture does not mangle emoji/box-drawing glyphs"
+    Check-Contains 'home/dot_claude/statusline-command.ps1' '[Console]::OpenStandardInput()' 'entrypoint reads stdin as UTF-8 so non-ASCII JSON values (e.g. CJK folder names) are not mangled'
 }
 if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-windows/Width.ps1')) {
     Check-Contains 'home/dot_claude/statusline-windows/Width.ps1' 'CLAUDE_STATUSLINE_COLS' 'Get-StatuslineColumns honours the CLAUDE_STATUSLINE_COLS escape hatch'
@@ -279,12 +280,15 @@ if ((Test-Path -LiteralPath $statuslineEntrypoint) -and (Get-Command pwsh -Error
 '@
 
     function Invoke-StatuslineFixture {
-        param([string]$Cols)
+        param(
+            [string]$Cols,
+            [string]$FixtureText = $fixture
+        )
 
         Remove-Item Env:\COLUMNS -ErrorAction SilentlyContinue
         $env:CLAUDE_STATUSLINE_COLS = $Cols
         try {
-            $result = $fixture | & pwsh -NoProfile -File $statuslineEntrypoint 2>$null
+            $result = $FixtureText | & pwsh -NoProfile -File $statuslineEntrypoint 2>$null
         } finally {
             Remove-Item Env:\CLAUDE_STATUSLINE_COLS -ErrorAction SilentlyContinue
         }
@@ -318,6 +322,42 @@ if ((Test-Path -LiteralPath $statuslineEntrypoint) -and (Get-Command pwsh -Error
         Fail "width=40 still shows P2 'Weekly' bar (drop logic broken)"
     } else {
         Ok "width=40 drops the P2 Weekly bar"
+    }
+
+    # Capturing a native command's output through PowerShell's own pipeline
+    # (`$result = ... | & pwsh ...`, as Invoke-StatuslineFixture does above)
+    # decodes the child's stdout bytes using this *outer* session's
+    # [Console]::OutputEncoding (the OEM/ANSI code page) before the string
+    # ever reaches $result — the very problem the entrypoint's stdout/stdin
+    # fixes exist to avoid, just relocated to the test harness. Claude Code
+    # never goes through that: it's a Node process reading the child's raw
+    # bytes directly. Start-Process with file-redirected stdin/stdout
+    # sidesteps PowerShell's pipeline decoding entirely (OS-level file
+    # handles, no intermediate string conversion), matching how Claude Code
+    # actually captures this script's output.
+    $cjkFixture = $fixture -replace '"current_dir":"C:/tmp","project_dir":"C:/tmp"', '"current_dir":"C:/tmp/測試專案","project_dir":"C:/tmp/測試專案"'
+    $cjkInFile = [System.IO.Path]::GetTempFileName()
+    $cjkOutFile = [System.IO.Path]::GetTempFileName()
+    $cjkErrFile = [System.IO.Path]::GetTempFileName()
+    try {
+        [System.IO.File]::WriteAllText($cjkInFile, $cjkFixture, [System.Text.UTF8Encoding]::new($false))
+        Remove-Item Env:\COLUMNS -ErrorAction SilentlyContinue
+        $env:CLAUDE_STATUSLINE_COLS = '300'
+        try {
+            Start-Process -FilePath 'pwsh' -ArgumentList @('-NoProfile', '-File', $statuslineEntrypoint) `
+                -RedirectStandardInput $cjkInFile -RedirectStandardOutput $cjkOutFile -RedirectStandardError $cjkErrFile `
+                -NoNewWindow -Wait
+        } finally {
+            Remove-Item Env:\CLAUDE_STATUSLINE_COLS -ErrorAction SilentlyContinue
+        }
+        $cjkOutText = [System.IO.File]::ReadAllText($cjkOutFile, [System.Text.UTF8Encoding]::new($false))
+    } finally {
+        Remove-Item -LiteralPath $cjkInFile, $cjkOutFile, $cjkErrFile -ErrorAction SilentlyContinue
+    }
+    if ($cjkOutText.Contains('測試專案')) {
+        Ok "stdin decodes non-ASCII (CJK) JSON string values correctly"
+    } else {
+        Fail "stdin mangled the CJK folder name; got: $cjkOutText"
     }
 } else {
     Write-Host '  skip  statusline-command.ps1 missing or pwsh unavailable'

@@ -3,8 +3,7 @@
 # Items.ps1's emitters, mirroring home/dot_claude/statusline/data.sh.
 #
 # Set-StatuslineFields expects an already-parsed JSON object (see
-# statusline-command.ps1 for the `$input | Out-String | ConvertFrom-Json`
-# read, which only works correctly at the top level of a piped script).
+# statusline-command.ps1 for the UTF-8 stdin read + ConvertFrom-Json).
 
 # Set-StatuslineFields <parsed JSON object> - populate script-scope globals
 # from the Claude Code statusline stdin payload. Missing fields default to
