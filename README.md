@@ -67,6 +67,8 @@ On Windows, use the native wrapper:
 
 On native Windows, winget covers only native prerequisites and helpers such as Git, chezmoi, mise, PowerShell, Git LFS, GnuPG, age, jq, and oh-my-posh. The shared developer CLI set remains mise-managed through `home/dot_config/mise/config.toml`, except for Codex CLI: mise's `codex` entry excludes native Windows (`os = ["linux", "macos"]`, spec 040), and `home/run_once_after_12-codex-windows.ps1.tmpl` installs it instead through OpenAI's official one-liner — `powershell -ExecutionPolicy ByPass -Command "irm https://chatgpt.com/codex/install.ps1 | iex"` — with no npm, no mise, no package manager in between.
 
+Native Windows also gets its own Claude Code statusline: `home/dot_claude/statusline-command.ps1` and `home/dot_claude/statusline-windows/*.ps1` are a native PowerShell 7+ port of the bash statusline (item-list + packer architecture, spec 021), wired into `~/.claude/settings.json` by `home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl` the same way the Unix path is wired (spec 041).
+
 ## Supported Platforms
 
 | Platform | Status |
@@ -102,7 +104,14 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── dot_tmux.conf                  # → ~/.tmux.conf
     │
     ├── dot_claude/
-    │   ├── executable_statusline-command.sh   # → ~/.claude/statusline-command.sh
+    │   ├── executable_statusline-command.sh   # → ~/.claude/statusline-command.sh (POSIX/WSL2)
+    │   ├── statusline-command.ps1             # → ~/.claude/statusline-command.ps1 (native Windows)
+    │   ├── statusline-windows/                # → ~/.claude/statusline-windows/ (native Windows)
+    │   │   ├── Core.ps1
+    │   │   ├── Data.ps1
+    │   │   ├── Width.ps1
+    │   │   ├── Items.ps1
+    │   │   └── Layout.ps1
     │   └── hooks/
     │       └── executable_sensitive-file-guard.sh # → ~/.claude/hooks/sensitive-file-guard.sh
     │
@@ -137,6 +146,7 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── run_onchange_after_10-mise-install.sh.tmpl  # mise install (hash-gated)
     ├── run_onchange_after_11-mise-windows.ps1.tmpl # Windows mise install (hash-gated)
     ├── run_once_after_12-codex-windows.ps1.tmpl    # Windows Codex CLI via official installer
+    ├── run_onchange_after_13-claude-statusline-windows.ps1.tmpl # wire Windows Claude statusline
     ├── run_once_after_20-ohmyzsh.sh.tmpl           # omz + powerlevel10k
     ├── run_once_after_30-nvchad.sh.tmpl            # NvChad starter + Lazy sync
     ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit

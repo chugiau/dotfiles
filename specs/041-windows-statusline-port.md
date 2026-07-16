@@ -85,6 +85,21 @@ change the port instead of it being a blind line-for-line translation:
   startup so the escapes survive Claude Code's stdout capture (Microsoft's
   `about_ANSI_Terminals` guidance: explicit `Ansi` mode is recommended for
   output consumed outside the PowerShell host).
+- `statusline-command.ps1` also rewraps `[Console]::Out` in a UTF-8
+  (no-BOM) `StreamWriter` before emitting anything. Claude Code captures
+  this script's stdout via a redirected pipe rather than a real console;
+  PowerShell's console host writes redirected output through
+  `[Console]::OutputEncoding`, which defaults to the process's OEM/ANSI
+  code page (e.g. cp950 on Traditional Chinese Windows) and silently
+  replaces every emoji/box-drawing glyph the packer emits with `?`.
+  Setting `[Console]::OutputEncoding` directly is not viable here — its
+  setter calls a Win32 console API that requires an attached console and
+  throws when Claude Code launches the process without one — so the fix
+  wraps the raw stdout handle (`[Console]::OpenStandardOutput()` +
+  `[Console]::SetOut`) instead, wrapped in try/catch so a failure degrades
+  to the host default rather than crashing the statusline. Interactive runs
+  in a real terminal are unaffected (PowerShell writes via `WriteConsoleW`,
+  UTF-16, whenever output isn't redirected).
 - `Invoke-LayoutPack`/`Invoke-LayoutRender` port the same drop-then-greedy-
   wrap algorithm: max 5 lines, priority-0 items never dropped, rightmost
   highest-priority item dropped first when the plan overflows, ANSI-aware

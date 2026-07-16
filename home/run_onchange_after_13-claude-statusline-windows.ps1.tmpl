@@ -1,0 +1,57 @@
+# Wire ~/.claude/statusline-command.ps1 into Claude Code via settings.json.
+#
+# chezmoi already drops the script under ~/.claude/, but Claude Code only
+# runs it when settings.json carries a `statusLine` block. This script
+# merges that block into settings.json idempotently (no jq dependency -
+# native ConvertFrom-Json/ConvertTo-Json instead), leaving any Claude-Code-
+# managed fields (env, hooks, permissions, ...) untouched.
+#
+# The command path uses forward slashes: on Windows, Claude Code may route
+# statusLine.command through Git Bash when it's installed, and Git Bash
+# treats unescaped backslashes as escape characters, silently eating a
+# literal C:\Users\... path's separators. See specs/041-windows-statusline-port.md.
+#
+# Re-runs whenever this script's content changes (run_onchange).
+
+$ErrorActionPreference = 'Stop'
+
+if (-not $IsWindows) {
+    Write-Host '[claude-statusline-windows] non-Windows host - skipping'
+    return
+}
+
+$settingsPath = Join-Path $HOME '.claude\settings.json'
+$commandPath = '{{ .chezmoi.homeDir }}\.claude\statusline-command.ps1' -replace '\\', '/'
+$command = "pwsh -NoProfile -NoLogo -File $commandPath"
+
+try {
+    $settingsDir = Split-Path -Parent $settingsPath
+    if (-not (Test-Path -LiteralPath $settingsDir)) {
+        New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
+    }
+
+    $settings = if (Test-Path -LiteralPath $settingsPath) {
+        Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json -AsHashtable -ErrorAction Stop
+    } else {
+        @{}
+    }
+    if ($null -eq $settings) { $settings = @{} }
+
+    $desired = @{ type = 'command'; command = $command; padding = 0 }
+    $current = $settings['statusLine']
+    $alreadyWired = $current -and
+    $current['type'] -eq $desired['type'] -and
+    $current['command'] -eq $desired['command'] -and
+    $current['padding'] -eq $desired['padding']
+
+    if ($alreadyWired) {
+        Write-Host '[claude-statusline-windows] statusLine already wired'
+        return
+    }
+
+    $settings['statusLine'] = $desired
+    ($settings | ConvertTo-Json -Depth 20) | Set-Content -LiteralPath $settingsPath -Encoding utf8
+    Write-Host "[claude-statusline-windows] wired statusLine -> $commandPath"
+} catch {
+    Write-Warning "[claude-statusline-windows] failed to wire statusLine: $($_.Exception.Message)"
+}

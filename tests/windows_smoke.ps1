@@ -85,6 +85,24 @@ function Check-NotContains {
     }
 }
 
+function Check-Order {
+    param(
+        [string]$Path,
+        [string]$First,
+        [string]$Second,
+        [string]$Message
+    )
+
+    $content = Get-Content -LiteralPath (Join-RepoPath $Path) -Raw
+    $firstIndex = $content.IndexOf($First)
+    $secondIndex = $content.IndexOf($Second)
+    if ($firstIndex -ge 0 -and $secondIndex -ge 0 -and $firstIndex -lt $secondIndex) {
+        Ok $Message
+    } else {
+        Fail $Message
+    }
+}
+
 Write-Host 'Windows smoke tests: chezmoi + mise dotfiles'
 Write-Host ''
 
@@ -171,6 +189,8 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/dotfiles/powershell/p
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'mise activate pwsh' 'PowerShell profile activates mise'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' '.local\share\mise\shims' 'PowerShell profile exposes user-scope mise shims'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'LOCALAPPDATA' 'PowerShell profile exposes native Windows mise shims'
+    Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' '$env:HOME = $HOME' 'PowerShell profile exports $env:HOME for POSIX-style tools'
+    Check-Order 'home/dot_config/dotfiles/powershell/profile.ps1' '$env:HOME = $HOME' 'hook pwsh' 'PowerShell profile sets $env:HOME before hooking direnv'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'hook pwsh' 'PowerShell profile hooks direnv'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'Get-Command direnv.exe' 'PowerShell profile prefers native direnv.exe'
     Check-Contains 'home/dot_config/dotfiles/powershell/profile.ps1' 'IsNullOrWhiteSpace' 'PowerShell profile skips empty direnv hook output'
@@ -202,9 +222,9 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/run_onchange_after_13-claude-sta
     Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'statusLine' 'Statusline wiring script sets the statusLine settings.json key'
     Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'ConvertFrom-Json' 'Statusline wiring script parses settings.json without jq'
     Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'ConvertTo-Json' 'Statusline wiring script serializes settings.json without jq'
-    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' "-replace '\\\\', '/'" 'Statusline wiring script forward-slashes the command path (Git Bash backslash quoting)'
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' "-replace '\\', '/'" 'Statusline wiring script forward-slashes the command path (Git Bash backslash quoting)'
     Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'pwsh -NoProfile -NoLogo -File' 'Statusline wiring script invokes pwsh -NoProfile -NoLogo -File'
-    Check-NotContains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' ' jq ' 'Statusline wiring script does not shell out to jq'
+    Check-NotContains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'jq -' 'Statusline wiring script does not shell out to jq'
 }
 Write-Host ''
 
@@ -213,6 +233,8 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-command.ps
     foreach ($mod in @('Core', 'Data', 'Width', 'Items', 'Layout')) {
         Check-Contains 'home/dot_claude/statusline-command.ps1' "statusline-windows/$mod.ps1" "entrypoint dot-sources statusline-windows/$mod.ps1"
     }
+    Check-Contains 'home/dot_claude/statusline-command.ps1' '[System.Text.UTF8Encoding]' 'entrypoint builds a UTF-8 (no BOM) encoding for stdout'
+    Check-Contains 'home/dot_claude/statusline-command.ps1' '[Console]::SetOut(' "entrypoint rewraps stdout as UTF-8 so Claude Code's redirected-pipe capture does not mangle emoji/box-drawing glyphs"
 }
 if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-windows/Width.ps1')) {
     Check-Contains 'home/dot_claude/statusline-windows/Width.ps1' 'CLAUDE_STATUSLINE_COLS' 'Get-StatuslineColumns honours the CLAUDE_STATUSLINE_COLS escape hatch'

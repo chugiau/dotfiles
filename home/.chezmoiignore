@@ -29,6 +29,8 @@
 61-claude-env.sh
 62-claude-security.sh
 63-codex-security.sh
+.claude/statusline/
+.claude/statusline-command.sh
 {{ else -}}
 # Non-Windows hosts keep the zsh/POSIX flow and ignore native Windows
 # PowerShell startup files and Windows-only run scripts.
@@ -37,4 +39,7 @@ Documents/PowerShell/
 05-windows-packages.ps1
 11-mise-windows.ps1
 12-codex-windows.ps1
+13-claude-statusline-windows.ps1
+.claude/statusline-windows/
+.claude/statusline-command.ps1
 {{ end -}}
