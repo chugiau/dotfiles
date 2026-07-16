@@ -97,7 +97,14 @@ foreach ($path in @(
         'home/dot_config/dotfiles/powershell/profile.ps1',
         'home/run_once_before_05-windows-packages.ps1.tmpl',
         'home/run_onchange_after_11-mise-windows.ps1.tmpl',
-        'home/run_once_after_12-codex-windows.ps1.tmpl'
+        'home/run_once_after_12-codex-windows.ps1.tmpl',
+        'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl',
+        'home/dot_claude/statusline-command.ps1',
+        'home/dot_claude/statusline-windows/Core.ps1',
+        'home/dot_claude/statusline-windows/Data.ps1',
+        'home/dot_claude/statusline-windows/Width.ps1',
+        'home/dot_claude/statusline-windows/Items.ps1',
+        'home/dot_claude/statusline-windows/Layout.ps1'
     )) {
     Check-Exists $path
 }
@@ -111,7 +118,14 @@ foreach ($path in @(
         'home/dot_config/dotfiles/powershell/profile.ps1',
         'home/run_once_before_05-windows-packages.ps1.tmpl',
         'home/run_onchange_after_11-mise-windows.ps1.tmpl',
-        'home/run_once_after_12-codex-windows.ps1.tmpl'
+        'home/run_once_after_12-codex-windows.ps1.tmpl',
+        'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl',
+        'home/dot_claude/statusline-command.ps1',
+        'home/dot_claude/statusline-windows/Core.ps1',
+        'home/dot_claude/statusline-windows/Data.ps1',
+        'home/dot_claude/statusline-windows/Width.ps1',
+        'home/dot_claude/statusline-windows/Items.ps1',
+        'home/dot_claude/statusline-windows/Layout.ps1'
     )) {
     if (Test-Path -LiteralPath (Join-RepoPath $path)) {
         Check-Parse $path
@@ -170,10 +184,121 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/.chezmoiignore')) {
     Check-Contains 'home/.chezmoiignore' '05-windows-packages.ps1' 'non-Windows ignores Windows package script by target name'
     Check-Contains 'home/.chezmoiignore' '11-mise-windows.ps1' 'non-Windows ignores Windows mise script by target name'
     Check-Contains 'home/.chezmoiignore' '12-codex-windows.ps1' 'non-Windows ignores Windows codex script by target name'
+    Check-Contains 'home/.chezmoiignore' '13-claude-statusline-windows.ps1' 'non-Windows ignores Windows statusline wiring script by target name'
+    Check-Contains 'home/.chezmoiignore' '.claude/statusline-windows/' 'non-Windows ignores Windows statusline module directory by target path'
+    Check-Contains 'home/.chezmoiignore' '.claude/statusline-command.ps1' 'non-Windows ignores Windows statusline entrypoint by target path'
     Check-Contains 'home/.chezmoiignore' '10-system-packages.sh' 'Windows ignores Unix package script by target name'
     Check-Contains 'home/.chezmoiignore' '63-codex-security.sh' 'Windows ignores Unix agent script by target name'
+    Check-Contains 'home/.chezmoiignore' '.claude/statusline/' 'Windows ignores Unix statusline module directory by target path'
+    Check-Contains 'home/.chezmoiignore' '.claude/statusline-command.sh' 'Windows ignores Unix statusline entrypoint by target path'
     Check-Contains 'home/.chezmoiignore' '.config/dotfiles/powershell/' 'non-Windows ignores PowerShell module by target path'
     Check-Contains 'home/.chezmoiignore' '.config/dotfiles/modules/' 'Windows ignores zsh modules by target path'
+}
+Write-Host ''
+
+Write-Host '[claude statusline wiring]'
+if (Test-Path -LiteralPath (Join-RepoPath 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl')) {
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'IsWindows' 'Statusline wiring script guards on $IsWindows'
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'statusLine' 'Statusline wiring script sets the statusLine settings.json key'
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'ConvertFrom-Json' 'Statusline wiring script parses settings.json without jq'
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'ConvertTo-Json' 'Statusline wiring script serializes settings.json without jq'
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' "-replace '\\\\', '/'" 'Statusline wiring script forward-slashes the command path (Git Bash backslash quoting)'
+    Check-Contains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' 'pwsh -NoProfile -NoLogo -File' 'Statusline wiring script invokes pwsh -NoProfile -NoLogo -File'
+    Check-NotContains 'home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl' ' jq ' 'Statusline wiring script does not shell out to jq'
+}
+Write-Host ''
+
+Write-Host '[claude statusline modules]'
+if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-command.ps1')) {
+    foreach ($mod in @('Core', 'Data', 'Width', 'Items', 'Layout')) {
+        Check-Contains 'home/dot_claude/statusline-command.ps1' "statusline-windows/$mod.ps1" "entrypoint dot-sources statusline-windows/$mod.ps1"
+    }
+}
+if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-windows/Width.ps1')) {
+    Check-Contains 'home/dot_claude/statusline-windows/Width.ps1' 'CLAUDE_STATUSLINE_COLS' 'Get-StatuslineColumns honours the CLAUDE_STATUSLINE_COLS escape hatch'
+    Check-Contains 'home/dot_claude/statusline-windows/Width.ps1' 'env:COLUMNS' 'Get-StatuslineColumns reads $env:COLUMNS'
+    Check-Contains 'home/dot_claude/statusline-windows/Width.ps1' '80' 'Get-StatuslineColumns falls back to literal 80'
+}
+if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_claude/statusline-windows/Layout.ps1')) {
+    Check-Contains 'home/dot_claude/statusline-windows/Layout.ps1' 'Invoke-LayoutPack' 'Invoke-LayoutPack is defined in Layout.ps1'
+    Check-Contains 'home/dot_claude/statusline-windows/Layout.ps1' 'Invoke-LayoutRender' 'Invoke-LayoutRender is defined in Layout.ps1'
+    Check-Contains 'home/dot_claude/statusline-windows/Layout.ps1' '5' 'Layout.ps1 references a 5-line cap'
+}
+Write-Host ''
+
+Write-Host '[claude statusline behaviour]'
+$statuslineEntrypoint = Join-RepoPath 'home/dot_claude/statusline-command.ps1'
+if ((Test-Path -LiteralPath $statuslineEntrypoint) -and (Get-Command pwsh -ErrorAction SilentlyContinue)) {
+    $fixture = @'
+{
+  "model": {"id":"claude-opus-4-7","display_name":"Opus"},
+  "workspace": {"current_dir":"C:/tmp","project_dir":"C:/tmp"},
+  "cwd": "C:/tmp",
+  "session_id": "spec041-test",
+  "transcript_path": "",
+  "version": "2.1.90",
+  "cost": {"total_cost_usd":0.123,"total_duration_ms":60000,"total_api_duration_ms":15000},
+  "context_window": {
+    "total_input_tokens": 12000,
+    "total_output_tokens": 3000,
+    "used_percentage": 25,
+    "current_usage": {
+      "input_tokens": 1000,
+      "output_tokens": 200,
+      "cache_creation_input_tokens": 500,
+      "cache_read_input_tokens": 4000
+    }
+  },
+  "rate_limits": {
+    "five_hour": {"used_percentage":42,"resets_at":9999999999},
+    "seven_day": {"used_percentage":13,"resets_at":9999999999}
+  }
+}
+'@
+
+    function Invoke-StatuslineFixture {
+        param([string]$Cols)
+
+        Remove-Item Env:\COLUMNS -ErrorAction SilentlyContinue
+        $env:CLAUDE_STATUSLINE_COLS = $Cols
+        try {
+            $result = $fixture | & pwsh -NoProfile -File $statuslineEntrypoint 2>$null
+        } finally {
+            Remove-Item Env:\CLAUDE_STATUSLINE_COLS -ErrorAction SilentlyContinue
+        }
+        , @($result | Where-Object { $_ -ne $null -and $_ -ne '' })
+    }
+
+    $out300 = Invoke-StatuslineFixture -Cols '300'
+    $joined300 = $out300 -join "`n"
+    if ($out300.Count -eq 1 -and $joined300.Contains('Opus') -and $joined300.Contains('Context')) {
+        Ok "width=300 renders 1 line containing model + Context"
+    } else {
+        Fail "width=300 produced $($out300.Count) line(s); expected 1 with Opus+Context"
+    }
+
+    $out80 = Invoke-StatuslineFixture -Cols '80'
+    $joined80 = $out80 -join "`n"
+    if ($out80.Count -ge 2 -and $out80.Count -le 5 -and $joined80.Contains('Opus') -and $joined80.Contains('Context')) {
+        Ok "width=80 renders $($out80.Count) line(s) containing model + Context"
+    } else {
+        Fail "width=80 produced $($out80.Count) line(s); expected 2-5 with Opus+Context"
+    }
+
+    $out40 = Invoke-StatuslineFixture -Cols '40'
+    $joined40 = $out40 -join "`n"
+    if ($out40.Count -ge 1 -and $out40.Count -le 5 -and $joined40.Contains('Opus')) {
+        Ok "width=40 renders $($out40.Count) line(s) within max-5 cap, model present"
+    } else {
+        Fail "width=40 produced $($out40.Count) line(s); expected 1-5 with Opus"
+    }
+    if ($joined40.Contains('Weekly')) {
+        Fail "width=40 still shows P2 'Weekly' bar (drop logic broken)"
+    } else {
+        Ok "width=40 drops the P2 Weekly bar"
+    }
+} else {
+    Write-Host '  skip  statusline-command.ps1 missing or pwsh unavailable'
 }
 Write-Host ''
 
