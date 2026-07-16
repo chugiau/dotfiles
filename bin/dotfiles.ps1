@@ -87,6 +87,17 @@ function Invoke-Update {
     if (Has-Command mise) {
         mise upgrade
     }
+    if (Has-Command codex) {
+        Write-Host '[codex] updating via the official installer'
+        try {
+            powershell -ExecutionPolicy ByPass -Command 'irm https://chatgpt.com/codex/install.ps1 | iex'
+            if ($LASTEXITCODE -ne 0) {
+                Write-Warning "codex update exited with code $LASTEXITCODE"
+            }
+        } catch {
+            Write-Warning "codex update failed: $($_.Exception.Message)"
+        }
+    }
     if (Has-Command nvim) {
         nvim --headless '+Lazy! update' +qa
     }

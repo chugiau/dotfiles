@@ -1,0 +1,31 @@
+# Install the Codex CLI on native Windows via the official installer.
+#
+# mise's bare `codex = "latest"` shorthand can resolve to the npm backend,
+# which needs a Node toolchain just to fetch a static binary, and the
+# upstream install.sh explicitly refuses to run outside macOS/Linux. So
+# home/dot_config/mise/config.toml excludes codex from Windows
+# (os = ["linux", "macos"]) and this script installs it directly: the
+# official install.ps1 downloads the codex.exe release asset and wires it
+# onto the user PATH — no Node, no npm, no mise backend ambiguity.
+
+$ErrorActionPreference = 'Stop'
+
+if (-not $IsWindows) {
+    Write-Host '[codex-windows] non-Windows host - skipping'
+    return
+}
+
+if (Get-Command codex -ErrorAction SilentlyContinue) {
+    Write-Host '[codex-windows] codex already installed'
+    return
+}
+
+Write-Host '[codex-windows] installing Codex CLI via the official installer'
+try {
+    powershell -ExecutionPolicy ByPass -Command 'irm https://chatgpt.com/codex/install.ps1 | iex'
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "[codex-windows] Codex CLI installer exited with code $LASTEXITCODE"
+    }
+} catch {
+    Write-Warning "[codex-windows] Codex CLI install failed: $($_.Exception.Message)"
+}

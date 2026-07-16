@@ -36,4 +36,5 @@ Documents/PowerShell/
 .config/dotfiles/powershell/
 05-windows-packages.ps1
 11-mise-windows.ps1
+12-codex-windows.ps1
 {{ end -}}

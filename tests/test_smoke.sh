@@ -181,6 +181,7 @@ check_exists "home/run_once_before_10-system-packages.sh.tmpl"
 check_exists "home/run_once_before_05-windows-packages.ps1.tmpl"
 check_exists "home/run_onchange_after_10-mise-install.sh.tmpl"
 check_exists "home/run_onchange_after_11-mise-windows.ps1.tmpl"
+check_exists "home/run_once_after_12-codex-windows.ps1.tmpl"
 check_exists "home/run_onchange_after_15-neovim.sh.tmpl"
 check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
@@ -249,8 +250,23 @@ if grep -q 'slimfat.omp.json' "$SCRIPT_DIR/home/dot_config/dotfiles/powershell/p
 else
     fail "PowerShell profile does not default to the slimfat oh-my-posh theme"
 fi
+# Native Windows installs Codex CLI via OpenAI's official irm | iex
+# one-liner instead of through mise or npm (spec 040) — install.sh
+# explicitly refuses to run outside macOS/Linux, and mise's bare `codex`
+# shorthand can resolve to the npm backend.
+_codex_win_installer="$SCRIPT_DIR/home/run_once_after_12-codex-windows.ps1.tmpl"
+if [ -f "$_codex_win_installer" ] &&
+    grep -q 'IsWindows' "$_codex_win_installer" &&
+    grep -q 'irm https://chatgpt.com/codex/install.ps1 | iex' "$_codex_win_installer" &&
+    ! grep -q 'npm install' "$_codex_win_installer" &&
+    grep -q 'irm https://chatgpt.com/codex/install.ps1 | iex' "$SCRIPT_DIR/bin/dotfiles.ps1"; then
+    ok "native Windows installs and updates Codex CLI via the official irm | iex one-liner, no npm"
+else
+    fail "native Windows does not install/update Codex CLI via the official irm | iex one-liner"
+fi
 if grep -q '^05-windows-packages\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
     grep -q '^11-mise-windows\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
+    grep -q '^12-codex-windows\.ps1$' "$SCRIPT_DIR/home/.chezmoiignore" &&
     grep -q '^10-system-packages\.sh$' "$SCRIPT_DIR/home/.chezmoiignore" &&
     grep -q '^63-codex-security\.sh$' "$SCRIPT_DIR/home/.chezmoiignore"; then
     ok ".chezmoiignore splits Windows and Unix run scripts by target script name"
@@ -459,9 +475,10 @@ if awk '
 else
     fail "mise config does not declare glab under [tools]"
 fi
-# codex (OpenAI Codex CLI) must be declared so every machine ships the
-# terminal coding agent alongside Claude Code via mise shims (spec 011 —
-# aqua:openai/codex backend pulls the static release binary).
+# codex (OpenAI Codex CLI) must be declared so POSIX/WSL2 machines ship the
+# terminal coding agent alongside Claude Code via mise shims (spec 011).
+# It carries an os = ["linux", "macos"] filter so native Windows skips the
+# mise install entirely and uses the official installer instead (spec 040).
 if awk '
     /^\[/                         { section = $0 }
     section == "[tools]" && /^[[:space:]]*codex[[:space:]]*=/ { found = 1 }
@@ -470,6 +487,11 @@ if awk '
     ok "mise config declares codex under [tools]"
 else
     fail "mise config does not declare codex under [tools]"
+fi
+if grep -q 'os = \["linux", "macos"\]' "$_misecfg"; then
+    ok "mise config excludes codex from native Windows (spec 040)"
+else
+    fail "mise config does not exclude codex from native Windows (spec 040)"
 fi
 # gcloud must be declared so any existing Google Cloud CLI shim has an active
 # version during login-shell startup (spec 037). Without this, startup hooks or

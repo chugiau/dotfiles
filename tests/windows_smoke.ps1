@@ -96,7 +96,8 @@ foreach ($path in @(
         'home/Documents/PowerShell/Microsoft.PowerShell_profile.ps1',
         'home/dot_config/dotfiles/powershell/profile.ps1',
         'home/run_once_before_05-windows-packages.ps1.tmpl',
-        'home/run_onchange_after_11-mise-windows.ps1.tmpl'
+        'home/run_onchange_after_11-mise-windows.ps1.tmpl',
+        'home/run_once_after_12-codex-windows.ps1.tmpl'
     )) {
     Check-Exists $path
 }
@@ -109,7 +110,8 @@ foreach ($path in @(
         'home/Documents/PowerShell/Microsoft.PowerShell_profile.ps1',
         'home/dot_config/dotfiles/powershell/profile.ps1',
         'home/run_once_before_05-windows-packages.ps1.tmpl',
-        'home/run_onchange_after_11-mise-windows.ps1.tmpl'
+        'home/run_onchange_after_11-mise-windows.ps1.tmpl',
+        'home/run_once_after_12-codex-windows.ps1.tmpl'
     )) {
     if (Test-Path -LiteralPath (Join-RepoPath $path)) {
         Check-Parse $path
@@ -132,6 +134,21 @@ Write-Host '[mise manifest]'
 if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/mise/config.toml')) {
     Check-Contains 'home/dot_config/mise/config.toml' '"aqua:eza-community/eza" = "latest"' 'mise manifest installs eza through aqua'
     Check-NotContains 'home/dot_config/mise/config.toml' 'eza     = "latest"' 'mise manifest does not use bare eza shorthand'
+    Check-Contains 'home/dot_config/mise/config.toml' 'os = ["linux", "macos"]' 'mise manifest excludes codex from native Windows'
+    Check-NotContains 'home/dot_config/mise/config.toml' 'codex   = "latest"' 'mise manifest does not use bare codex shorthand'
+}
+Write-Host ''
+
+Write-Host '[codex install]'
+if (Test-Path -LiteralPath (Join-RepoPath 'home/run_once_after_12-codex-windows.ps1.tmpl')) {
+    Check-Contains 'home/run_once_after_12-codex-windows.ps1.tmpl' 'IsWindows' 'Codex Windows installer guards on $IsWindows'
+    Check-Contains 'home/run_once_after_12-codex-windows.ps1.tmpl' 'Get-Command codex' 'Codex Windows installer skips an existing install'
+    Check-Contains 'home/run_once_after_12-codex-windows.ps1.tmpl' "irm https://chatgpt.com/codex/install.ps1 | iex" 'Codex Windows installer uses the official irm | iex one-liner'
+    Check-Contains 'home/run_once_after_12-codex-windows.ps1.tmpl' 'ExecutionPolicy ByPass' 'Codex Windows installer bypasses execution policy'
+    Check-NotContains 'home/run_once_after_12-codex-windows.ps1.tmpl' 'npm install' 'Codex Windows installer does not shell out to npm install'
+}
+if (Test-Path -LiteralPath (Join-RepoPath 'bin/dotfiles.ps1')) {
+    Check-Contains 'bin/dotfiles.ps1' "irm https://chatgpt.com/codex/install.ps1 | iex" 'dotfiles.ps1 update refreshes Codex via the official irm | iex one-liner'
 }
 Write-Host ''
 
@@ -152,6 +169,7 @@ Write-Host '[chezmoi platform split]'
 if (Test-Path -LiteralPath (Join-RepoPath 'home/.chezmoiignore')) {
     Check-Contains 'home/.chezmoiignore' '05-windows-packages.ps1' 'non-Windows ignores Windows package script by target name'
     Check-Contains 'home/.chezmoiignore' '11-mise-windows.ps1' 'non-Windows ignores Windows mise script by target name'
+    Check-Contains 'home/.chezmoiignore' '12-codex-windows.ps1' 'non-Windows ignores Windows codex script by target name'
     Check-Contains 'home/.chezmoiignore' '10-system-packages.sh' 'Windows ignores Unix package script by target name'
     Check-Contains 'home/.chezmoiignore' '63-codex-security.sh' 'Windows ignores Unix agent script by target name'
     Check-Contains 'home/.chezmoiignore' '.config/dotfiles/powershell/' 'non-Windows ignores PowerShell module by target path'

@@ -18,7 +18,7 @@ node    = "lts"
 bun     = "latest"
 gh      = "latest"
 glab    = "latest"
-codex   = "latest"
+codex   = { version = "latest", os = ["linux", "macos"] }
 gcloud  = "latest"
 direnv  = "latest"
 bats    = "latest"
