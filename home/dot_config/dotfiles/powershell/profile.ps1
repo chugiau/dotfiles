@@ -18,6 +18,7 @@ function Test-InteractiveConsole {
     $Host.Name -notmatch 'ServerRemoteHost|Default Host'
 }
 
+$env:HOME = $HOME
 $env:DOTFILES_REPO = Join-Path $HOME '.dotfiles'
 $env:DOTFILES = Join-Path $HOME '.config\dotfiles'
 $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
