@@ -7,7 +7,7 @@
 [CmdletBinding()]
 param(
     [string]$DotfilesDir = (Join-Path $HOME '.dotfiles'),
-    [string]$DotfilesRepoUrl = 'https://github.com/AbandonedScope/dotfiles.git',
+    [string]$DotfilesRepoUrl = 'https://github.com/chugiau/dotfiles.git',
     [switch]$SkipApply
 )
 
