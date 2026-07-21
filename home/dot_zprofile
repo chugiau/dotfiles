@@ -4,21 +4,6 @@
 # subshell. Pure env exports live in ~/.zshenv; interactive-only setup
 # (prompt, completions, aliases, mise activate) lives in ~/.zshrc.
 
-# Input method — only when fcitx5 is actually installed on this box.
-if command -v fcitx5 >/dev/null 2>&1; then
-    export INPUT_METHOD=fcitx
-    export GTK_IM_MODULE=fcitx
-    export QT_IM_MODULE=fcitx
-    export XMODIFIERS=@im=fcitx
-    export SDL_IM_MODULE=fcitx
-    export GLFW_IM_MODULE=ibus
-
-    # Don't relaunch the daemon if one is already running for this user.
-    if ! pgrep -x -u "$USER" fcitx5 >/dev/null 2>&1; then
-        fcitx5 --disable=wayland -d --verbose '*'=0
-    fi
-fi
-
 # Homebrew — detect macOS (/opt/homebrew, /usr/local) and Linuxbrew
 # (/home/linuxbrew/.linuxbrew) layouts. Machines without brew skip the
 # eval entirely. Lives in .zprofile per Homebrew's own install script:

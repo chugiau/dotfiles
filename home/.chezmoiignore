@@ -15,6 +15,8 @@
 .gnupg/
 .config/dotfiles/modules/
 .config/dotfiles/bin/
+.config/environment.d/fcitx5.conf
+.config/autostart/org.fcitx.Fcitx5.desktop
 10-system-packages.sh
 10-mise-install.sh
 15-neovim.sh
