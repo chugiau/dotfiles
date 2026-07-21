@@ -401,6 +401,13 @@ if command -v chezmoi >/dev/null 2>&1; then
                 fail "rendered script parses: $name"
                 sh -n "$rendered" >&2 || true
             fi
+            # chezmoi fork/execs the materialized script directly (not via a
+            # shell), so a missing shebang is a syntactically valid POSIX sh
+            # file that still fails at runtime with "exec format error".
+            case "$(head -n 1 "$rendered")" in
+                '#!'*) ok "rendered script has shebang: $name" ;;
+                *) fail "rendered script has shebang: $name (missing '#!' first line causes 'exec format error' when chezmoi runs it)" ;;
+            esac
         else
             fail "template renders: $name"
             chezmoi execute-template -S "$SCRIPT_DIR/home" <"$tmpl" >&2 || true
