@@ -287,7 +287,7 @@ check_no_bashisms "bootstrap.sh"
 check_no_bashisms "bin/dotfiles"
 echo ""
 
-# ── Bootstrap apt diagnostics (spec 024) ───────────────────────────────────
+# ── Bootstrap apt diagnostics (specs 024, 043) ─────────────────────────────
 echo "[bootstrap apt diagnostics]"
 _bootstrap="$SCRIPT_DIR/bootstrap.sh"
 if grep -q 'Updating apt package indexes' "$_bootstrap"; then
@@ -312,9 +312,9 @@ else
     fail "bootstrap does not configure apt acquire retries"
 fi
 if grep -q 'APT::Update::Error-Mode=any' "$_bootstrap"; then
-    ok "bootstrap treats failed apt sources as update failures"
+    fail "bootstrap forces APT::Update::Error-Mode=any, so an unrelated optional/third-party repo warning aborts bootstrap"
 else
-    fail "bootstrap does not treat failed apt sources as update failures"
+    ok "bootstrap does not hard-fail apt update on an optional/third-party repo warning"
 fi
 if grep -q 'broken apt source' "$_bootstrap"; then
     ok "bootstrap explains apt update failure likely source"
