@@ -68,8 +68,7 @@ apt_get_update() {
     if ! maybe_sudo apt-get update \
         -o "Acquire::http::Timeout=$APT_ACQUIRE_TIMEOUT_SECONDS" \
         -o "Acquire::https::Timeout=$APT_ACQUIRE_TIMEOUT_SECONDS" \
-        -o "Acquire::Retries=$APT_ACQUIRE_RETRIES" \
-        -o "APT::Update::Error-Mode=any"; then
+        -o "Acquire::Retries=$APT_ACQUIRE_RETRIES"; then
         die "apt-get update failed. Inspect the repository URL printed above, disable the broken apt source, then re-run bootstrap."
     fi
 }
