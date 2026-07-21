@@ -824,28 +824,14 @@ if grep -q 'ENABLE_LSP_TOOL' "$_zprof"; then
 else
     ok "dot_zprofile no longer exports ENABLE_LSP_TOOL"
 fi
-# Fcitx5 must be guarded so machines without it skip the block entirely.
-if grep -q 'command -v fcitx5' "$_zprof"; then
-    ok "dot_zprofile guards fcitx5 on command -v fcitx5"
+# Fcitx5 startup moved to environment.d + XDG autostart (spec 045).
+# dot_zprofile is login-shell-scoped and never reaches the systemd
+# --user session GNOME actually launches apps from, so it must no
+# longer touch fcitx5 at all.
+if grep -qi 'fcitx5' "$_zprof"; then
+    fail "dot_zprofile still references fcitx5 (moved to environment.d + autostart)"
 else
-    fail "dot_zprofile does not guard fcitx5 on command -v fcitx5"
-fi
-# Daemon must not be relaunched when one is already running.
-if grep -q 'pgrep.*fcitx5' "$_zprof"; then
-    ok "dot_zprofile checks pgrep before launching fcitx5"
-else
-    fail "dot_zprofile does not check pgrep before launching fcitx5"
-fi
-# Typo fix: SDL_IM_MODULE must be fcitx, not icitx.
-if grep -q 'SDL_IM_MODULE=icitx' "$_zprof"; then
-    fail "dot_zprofile still has SDL_IM_MODULE=icitx typo"
-else
-    ok "dot_zprofile no longer has SDL_IM_MODULE=icitx typo"
-fi
-if grep -q 'SDL_IM_MODULE=fcitx' "$_zprof"; then
-    ok "dot_zprofile sets SDL_IM_MODULE=fcitx"
-else
-    fail "dot_zprofile does not set SDL_IM_MODULE=fcitx"
+    ok "dot_zprofile no longer references fcitx5"
 fi
 # Homebrew shellenv loop moves from dot_zshrc into dot_zprofile.
 if grep -q 'shellenv zsh' "$_zprof"; then
@@ -881,6 +867,35 @@ if awk '
     ok "dot_zprofile loads mise shims after Homebrew shellenv"
 else
     fail "dot_zprofile does not load mise shims after Homebrew shellenv"
+fi
+echo ""
+
+echo "[fcitx5 autostart]"
+_fcitx_envd="$SCRIPT_DIR/home/dot_config/environment.d/fcitx5.conf"
+check_exists "home/dot_config/environment.d/fcitx5.conf"
+if [ -f "$_fcitx_envd" ]; then
+    for sym in 'GTK_IM_MODULE=fcitx' 'QT_IM_MODULE=fcitx' 'QT_IM_MODULES=wayland;fcitx' \
+        'XMODIFIERS=@im=fcitx' 'SDL_IM_MODULE=fcitx' 'GLFW_IM_MODULE=ibus'; do
+        if grep -qF "$sym" "$_fcitx_envd"; then
+            ok "fcitx5.conf sets $sym"
+        else
+            fail "fcitx5.conf does not set $sym"
+        fi
+    done
+fi
+_fcitx_autostart="$SCRIPT_DIR/home/dot_config/autostart/org.fcitx.Fcitx5.desktop"
+check_exists "home/dot_config/autostart/org.fcitx.Fcitx5.desktop"
+if [ -f "$_fcitx_autostart" ]; then
+    if grep -q '^\[Desktop Entry\]' "$_fcitx_autostart"; then
+        ok "org.fcitx.Fcitx5.desktop has a [Desktop Entry] header"
+    else
+        fail "org.fcitx.Fcitx5.desktop is missing a [Desktop Entry] header"
+    fi
+    if grep -q '^TryExec=fcitx5$' "$_fcitx_autostart"; then
+        ok "org.fcitx.Fcitx5.desktop guards on TryExec=fcitx5"
+    else
+        fail "org.fcitx.Fcitx5.desktop does not guard on TryExec=fcitx5"
+    fi
 fi
 echo ""
 
