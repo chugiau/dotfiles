@@ -64,6 +64,16 @@ installer, treat a failed install as a warning rather than a fatal error.
   `cmd_update` in `bin/dotfiles` re-runs the same command.
 - Asserts `.chezmoiignore` ignores `14-codex-install.sh` on native Windows.
 
+### `tests/windows_smoke.ps1`
+
+- Replaces the `os = ["linux", "macos"]` mise-manifest assertion (now stale
+  since `codex` is dropped from the manifest entirely) with one asserting
+  `codex` is absent from `mise/config.toml`.
+- Asserts the new POSIX run script skips an existing install, uses the
+  official `curl | sh` one-liner, and does not shell out to `npm install`.
+- Asserts `bin/dotfiles`'s `cmd_update` re-runs the same one-liner.
+- Asserts `.chezmoiignore` ignores `14-codex-install.sh` on native Windows.
+
 ### `README.md`
 
 - The "What Gets Installed" table's **Dev tools** row drops `codex` from
@@ -96,4 +106,5 @@ installer, treat a failed install as a warning rather than a fatal error.
 - `home/.chezmoiignore`
 - `bin/dotfiles`
 - `tests/test_smoke.sh`
+- `tests/windows_smoke.ps1`
 - `README.md`

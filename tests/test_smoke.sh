@@ -182,6 +182,7 @@ check_exists "home/run_once_before_05-windows-packages.ps1.tmpl"
 check_exists "home/run_onchange_after_10-mise-install.sh.tmpl"
 check_exists "home/run_onchange_after_11-mise-windows.ps1.tmpl"
 check_exists "home/run_once_after_12-codex-windows.ps1.tmpl"
+check_exists "home/run_once_after_14-codex-install.sh.tmpl"
 check_exists "home/run_onchange_after_15-neovim.sh.tmpl"
 check_exists "home/run_once_after_20-ohmyzsh.sh.tmpl"
 check_exists "home/run_once_after_30-nvchad.sh.tmpl"
@@ -278,6 +279,38 @@ if grep -q '^\.config/dotfiles/powershell/$' "$SCRIPT_DIR/home/.chezmoiignore" &
     ok ".chezmoiignore uses target paths for dot_config directories"
 else
     fail ".chezmoiignore does not use target paths for dot_config directories"
+fi
+echo ""
+
+# ── Spec 046: Codex CLI via the official installer (POSIX) ─────────────────
+# mise's bare `codex` shorthand carries the same backend-resolution
+# ambiguity spec 040 stopped trusting on native Windows, so POSIX now
+# installs Codex CLI the same way: skip if already on PATH, otherwise run
+# the official curl | sh one-liner; `dotfiles update` re-runs it.
+echo "[spec 046 — codex official install]"
+check_exists "home/run_once_after_14-codex-install.sh.tmpl"
+check_sh_parse "home/run_once_after_14-codex-install.sh.tmpl"
+check_no_bashisms "home/run_once_after_14-codex-install.sh.tmpl"
+
+_codex_installer="$SCRIPT_DIR/home/run_once_after_14-codex-install.sh.tmpl"
+if [ -f "$_codex_installer" ] &&
+    grep -q 'command -v codex' "$_codex_installer" &&
+    grep -q 'curl -fsSL https://chatgpt.com/codex/install.sh | sh' "$_codex_installer"; then
+    ok "POSIX codex installer skips an existing install and uses the official curl | sh one-liner"
+else
+    fail "POSIX codex installer does not skip existing installs / use the official curl | sh one-liner"
+fi
+
+if grep -q 'curl -fsSL https://chatgpt.com/codex/install.sh | sh' "$SCRIPT_DIR/bin/dotfiles"; then
+    ok "dotfiles update refreshes Codex via the official curl | sh one-liner"
+else
+    fail "dotfiles update does not refresh Codex via the official curl | sh one-liner"
+fi
+
+if grep -q '^14-codex-install\.sh$' "$SCRIPT_DIR/home/.chezmoiignore"; then
+    ok "native Windows ignores the POSIX codex installer by target script name"
+else
+    fail "native Windows does not ignore the POSIX codex installer by target script name"
 fi
 echo ""
 
@@ -475,23 +508,19 @@ if awk '
 else
     fail "mise config does not declare glab under [tools]"
 fi
-# codex (OpenAI Codex CLI) must be declared so POSIX/WSL2 machines ship the
-# terminal coding agent alongside Claude Code via mise shims (spec 011).
-# It carries an os = ["linux", "macos"] filter so native Windows skips the
-# mise install entirely and uses the official installer instead (spec 040).
+# codex (OpenAI Codex CLI) must NOT be mise-managed on any platform: mise's
+# bare `codex` shorthand carries the same backend-resolution ambiguity that
+# made `eza` silently resolve to a different backend on native Windows
+# (spec 034). Both platforms now install it via the official installer
+# instead (spec 040 for Windows, spec 046 for POSIX).
 if awk '
     /^\[/                         { section = $0 }
     section == "[tools]" && /^[[:space:]]*codex[[:space:]]*=/ { found = 1 }
     END { exit(found ? 0 : 1) }
 ' "$_misecfg"; then
-    ok "mise config declares codex under [tools]"
+    fail "mise config still declares codex under [tools] (spec 046)"
 else
-    fail "mise config does not declare codex under [tools]"
-fi
-if grep -q 'os = \["linux", "macos"\]' "$_misecfg"; then
-    ok "mise config excludes codex from native Windows (spec 040)"
-else
-    fail "mise config does not exclude codex from native Windows (spec 040)"
+    ok "mise config does not declare codex under [tools] (spec 046)"
 fi
 # gcloud must be declared so any existing Google Cloud CLI shim has an active
 # version during login-shell startup (spec 037). Without this, startup hooks or

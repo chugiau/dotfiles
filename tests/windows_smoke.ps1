@@ -166,8 +166,7 @@ Write-Host '[mise manifest]'
 if (Test-Path -LiteralPath (Join-RepoPath 'home/dot_config/mise/config.toml')) {
     Check-Contains 'home/dot_config/mise/config.toml' '"aqua:eza-community/eza" = "latest"' 'mise manifest installs eza through aqua'
     Check-NotContains 'home/dot_config/mise/config.toml' 'eza     = "latest"' 'mise manifest does not use bare eza shorthand'
-    Check-Contains 'home/dot_config/mise/config.toml' 'os = ["linux", "macos"]' 'mise manifest excludes codex from native Windows'
-    Check-NotContains 'home/dot_config/mise/config.toml' 'codex   = "latest"' 'mise manifest does not use bare codex shorthand'
+    Check-NotContains 'home/dot_config/mise/config.toml' 'codex' 'mise manifest does not manage codex on any platform (spec 046)'
 }
 Write-Host ''
 
@@ -181,6 +180,14 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/run_once_after_12-codex-windows.
 }
 if (Test-Path -LiteralPath (Join-RepoPath 'bin/dotfiles.ps1')) {
     Check-Contains 'bin/dotfiles.ps1' "irm https://chatgpt.com/codex/install.ps1 | iex" 'dotfiles.ps1 update refreshes Codex via the official irm | iex one-liner'
+}
+if (Test-Path -LiteralPath (Join-RepoPath 'home/run_once_after_14-codex-install.sh.tmpl')) {
+    Check-Contains 'home/run_once_after_14-codex-install.sh.tmpl' 'command -v codex' 'POSIX Codex installer skips an existing install'
+    Check-Contains 'home/run_once_after_14-codex-install.sh.tmpl' 'curl -fsSL https://chatgpt.com/codex/install.sh | sh' 'POSIX Codex installer uses the official curl | sh one-liner'
+    Check-NotContains 'home/run_once_after_14-codex-install.sh.tmpl' 'npm install' 'POSIX Codex installer does not shell out to npm install'
+}
+if (Test-Path -LiteralPath (Join-RepoPath 'bin/dotfiles')) {
+    Check-Contains 'bin/dotfiles' 'curl -fsSL https://chatgpt.com/codex/install.sh | sh' 'dotfiles update refreshes Codex via the official curl | sh one-liner'
 }
 Write-Host ''
 
@@ -208,6 +215,7 @@ if (Test-Path -LiteralPath (Join-RepoPath 'home/.chezmoiignore')) {
     Check-Contains 'home/.chezmoiignore' '.claude/statusline-windows/' 'non-Windows ignores Windows statusline module directory by target path'
     Check-Contains 'home/.chezmoiignore' '.claude/statusline-command.ps1' 'non-Windows ignores Windows statusline entrypoint by target path'
     Check-Contains 'home/.chezmoiignore' '10-system-packages.sh' 'Windows ignores Unix package script by target name'
+    Check-Contains 'home/.chezmoiignore' '14-codex-install.sh' 'Windows ignores Unix codex installer script by target name'
     Check-Contains 'home/.chezmoiignore' '63-codex-security.sh' 'Windows ignores Unix agent script by target name'
     Check-Contains 'home/.chezmoiignore' '.claude/statusline/' 'Windows ignores Unix statusline module directory by target path'
     Check-Contains 'home/.chezmoiignore' '.claude/statusline-command.sh' 'Windows ignores Unix statusline entrypoint by target path'
