@@ -1709,6 +1709,13 @@ if [ -f "$_nvtmpl" ]; then
     else
         fail "does not install under /opt/nvim-"
     fi
+    # /opt may not exist on minimal systems — must be created (as root/sudo)
+    # before extracting into it (spec 044).
+    if grep -qE 'need_sudo mkdir -p /opt$' "$_nvtmpl"; then
+        ok "creates /opt before extracting (spec 044)"
+    else
+        fail "does not create /opt before extracting (spec 044)"
+    fi
     # Symlink into /usr/local/bin/nvim so root / sudoedit / cron can see it.
     if grep -q '/usr/local/bin/nvim' "$_nvtmpl"; then
         ok "symlinks /usr/local/bin/nvim"
