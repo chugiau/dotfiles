@@ -80,6 +80,7 @@ curl -fL --proto '=https' --tlsv1.2 -o "${tmp}/${asset}" "$url" \
     || die "failed to download ${url}"
 
 log "Extracting to /opt (sudo)"
+need_sudo mkdir -p /opt
 need_sudo rm -rf "$install_dir"
 need_sudo tar -C /opt -xzf "${tmp}/${asset}"
 
