@@ -70,6 +70,9 @@ cmd_update() {
     if has mise; then
         mise upgrade || true
     fi
+    if has codex; then
+        curl -fsSL https://chatgpt.com/codex/install.sh | sh || true
+    fi
     if [ -x "$HOME/.oh-my-zsh/tools/upgrade.sh" ]; then
         sh "$HOME/.oh-my-zsh/tools/upgrade.sh" || true
     fi

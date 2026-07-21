@@ -19,6 +19,7 @@
 .config/autostart/org.fcitx.Fcitx5.desktop
 10-system-packages.sh
 10-mise-install.sh
+14-codex-install.sh
 15-neovim.sh
 16-completions.sh
 20-ohmyzsh.sh

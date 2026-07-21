@@ -58,14 +58,15 @@ On Windows, use the native wrapper:
 | Layer | Managed by | Contents |
 |---|---|---|
 | **System prereqs** | Distro PM (apt / pacman / dnf / brew) | zsh, git, git-lfs, jq, gnupg, pinentry, openssh, ssh-askpass, curl, wget, build tools |
-| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, codex (POSIX/WSL2 only — see below), direnv, bats, ShellCheck, shfmt |
+| **Dev tools** | [mise](https://mise.jdx.dev/) | bat, eza, lazygit, glow, ripgrep, node, bun, gh, glab, direnv, bats, ShellCheck, shfmt |
+| **Codex CLI** | Official installer (`run_once_after_14-codex-install.sh.tmpl` on POSIX, `run_once_after_12-codex-windows.ps1.tmpl` on Windows) | [OpenAI Codex CLI](https://github.com/openai/codex) — not mise-managed, see below |
 | **Editor binary** | Upstream pre-built tarball | [Neovim](https://neovim.io/) — pinned in `home/run_onchange_after_15-neovim.sh.tmpl`, extracted to `/opt/nvim-<os>-<arch>`, symlinked to `/usr/local/bin/nvim` so `sudoedit` / root / cron all see it |
 | **Shell theming** | run_once scripts | [oh-my-zsh](https://ohmyz.sh/), [powerlevel10k](https://github.com/romkatv/powerlevel10k) |
 | **Shell autocomplete** | system PM + run_onchange | `bash-completion`, `zsh-syntax-highlighting`, `zsh-autosuggestions` from the distro PM; mise-tool completions generated into `~/.local/share/zsh/completions/` (spec 020) |
 | **Editor config** | run_once scripts | [NvChad](https://nvchad.com/) starter |
 | **Dotfiles** | [chezmoi](https://www.chezmoi.io/) | zshrc, zprofile, gitconfig, tmux.conf, Claude statusline, ... |
 
-On native Windows, winget covers only native prerequisites and helpers such as Git, chezmoi, mise, PowerShell, Git LFS, GnuPG, age, jq, and oh-my-posh. The shared developer CLI set remains mise-managed through `home/dot_config/mise/config.toml`, except for Codex CLI: mise's `codex` entry excludes native Windows (`os = ["linux", "macos"]`, spec 040), and `home/run_once_after_12-codex-windows.ps1.tmpl` installs it instead through OpenAI's official one-liner — `powershell -ExecutionPolicy ByPass -Command "irm https://chatgpt.com/codex/install.ps1 | iex"` — with no npm, no mise, no package manager in between.
+On native Windows, winget covers only native prerequisites and helpers such as Git, chezmoi, mise, PowerShell, Git LFS, GnuPG, age, jq, and oh-my-posh. The shared developer CLI set remains mise-managed through `home/dot_config/mise/config.toml`, except for Codex CLI, which is not mise-managed on any platform (mise's bare `codex` shorthand can resolve to either the aqua static-binary backend or the npm backend depending on mise version/platform). `home/run_once_after_12-codex-windows.ps1.tmpl` installs it on native Windows through OpenAI's official one-liner — `powershell -ExecutionPolicy ByPass -Command "irm https://chatgpt.com/codex/install.ps1 | iex"` — and `home/run_once_after_14-codex-install.sh.tmpl` installs it the same way on POSIX/WSL2 — `curl -fsSL https://chatgpt.com/codex/install.sh | sh` (spec 046) — with no npm, no mise, no package manager in between on either platform.
 
 Native Windows also gets its own Claude Code statusline: `home/dot_claude/statusline-command.ps1` and `home/dot_claude/statusline-windows/*.ps1` are a native PowerShell 7+ port of the bash statusline (item-list + packer architecture, spec 021), wired into `~/.claude/settings.json` by `home/run_onchange_after_13-claude-statusline-windows.ps1.tmpl` the same way the Unix path is wired (spec 041).
 
@@ -147,6 +148,7 @@ Adding a distro is just one new `else if` in `home/run_once_before_10-system-pac
     ├── run_onchange_after_11-mise-windows.ps1.tmpl # Windows mise install (hash-gated)
     ├── run_once_after_12-codex-windows.ps1.tmpl    # Windows Codex CLI via official installer
     ├── run_onchange_after_13-claude-statusline-windows.ps1.tmpl # wire Windows Claude statusline
+    ├── run_once_after_14-codex-install.sh.tmpl     # POSIX Codex CLI via official installer
     ├── run_once_after_20-ohmyzsh.sh.tmpl           # omz + powerlevel10k
     ├── run_once_after_30-nvchad.sh.tmpl            # NvChad starter + Lazy sync
     ├── run_onchange_after_40-git-hooks.sh.tmpl     # install repo pre-commit
@@ -232,20 +234,20 @@ node    = "lts"
 bun     = "latest"
 gh      = "latest"
 glab    = "latest"
-codex   = { version = "latest", os = ["linux", "macos"] }
 direnv  = "latest"
 bats    = "latest"
 shellcheck = "latest"
 shfmt      = "latest"
 ```
 
-> `codex` carries an `os` filter (spec 040) because native Windows does not
-> install it through mise, npm, or any other package manager:
-> `home/run_once_after_12-codex-windows.ps1.tmpl` runs OpenAI's official
-> one-liner instead — `powershell -ExecutionPolicy ByPass -Command "irm
-> https://chatgpt.com/codex/install.ps1 | iex"`. `bin/dotfiles.ps1 update`
-> re-runs that same one-liner to keep it current, the way `mise upgrade`
-> does for every other POSIX-managed tool.
+> `codex` is intentionally absent from this manifest — it is not
+> mise-managed on any platform (spec 046). `home/run_once_after_14-codex-install.sh.tmpl`
+> installs it on POSIX/WSL2 via OpenAI's official one-liner —
+> `curl -fsSL https://chatgpt.com/codex/install.sh | sh` — and
+> `home/run_once_after_12-codex-windows.ps1.tmpl` installs it the same way
+> on native Windows (spec 040). `dotfiles update` / `bin/dotfiles.ps1
+> update` re-run the same one-liner on each platform to keep it current,
+> the way `mise upgrade` does for every mise-managed tool.
 
 > `direnv` does a p10k-safe startup export before the instant-prompt block,
 > then wires its zsh hook in `home/dot_zshrc` after `mise activate`. A global
@@ -326,6 +328,7 @@ dotfiles update
 Runs in order:
 - `chezmoi update` — pulls the repo and re-applies any changed source files
 - `mise upgrade` — bumps every managed tool to its latest version
+- `curl -fsSL https://chatgpt.com/codex/install.sh | sh` — re-runs Codex CLI's official installer (when `codex` is on `PATH` — see spec 046)
 - `oh-my-zsh` `upgrade.sh` — pulls oh-my-zsh
 - `git -C powerlevel10k pull` — bumps p10k
 - `nvim --headless "+Lazy! update" +qa` — refreshes neovim plugins
