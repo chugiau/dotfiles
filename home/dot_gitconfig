@@ -19,3 +19,10 @@
 	process = git-lfs filter-process
 [alias]
 	clear-gone = "!f() { git fetch --all --prune && git for-each-ref --format='%(refname:short) %(upstream:track)' refs/heads | awk '$2 == \"[gone]\" { print $1 }' | while IFS= read -r b; do git branch -D \"$b\"; done; }; f"
+
+# Work identity override — anything checked out under /work/projects/ signs
+# and commits as the paokai identity instead of the personal default above.
+# Conditional include must come after [user] so its values win when the
+# gitdir pattern matches; repos outside /work/projects/ are unaffected.
+[includeIf "gitdir:/work/projects/"]
+	path = ~/.gitconfig-paokai
