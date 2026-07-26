@@ -11,8 +11,7 @@ why a decision is what it is.
 
 1. **Spec first.** Non-trivial changes get a `specs/NNN-slug.md` with
    `## Intent`, `## Acceptance criteria`, `## Out of scope`, `## Affected
-   files`; the newest specs are the reference for depth and tone. Trivial fixes
-   may put `Spec:` in the commit body instead.
+   files`. Trivial fixes may put `Spec:` in the commit body instead.
 2. **TDD for code only.** Feature and code changes run Red -> Green -> Refactor
    from the spec. Documentation and other non-code work does not.
 3. **The spec is the tiebreaker.** When spec, test, and implementation disagree,
@@ -29,14 +28,11 @@ why a decision is what it is.
 `bats tests/bats` (Bats runs under Bash). Other entrypoints are
 `sh bootstrap.sh` and `dotfiles install|update|link|check|doctor`. Native
 Windows uses `pwsh -NoProfile -File bootstrap.ps1` and
-`pwsh -NoProfile -File bin/dotfiles.ps1 test`, which runs
-`tests/windows_smoke.ps1` and skips POSIX and Bats checks when `sh` or `bats`
-are missing.
+`pwsh -NoProfile -File bin/dotfiles.ps1 test`.
 
 `tests/test_smoke.sh` is more than a smoke test: project decisions are frozen
 there as grep, parse, and rendered-template assertions, so a seemingly unrelated
-edit can still fail it. Freeze new spec decisions the same way, and pair Bats
-with `sh -n`, `zsh -n`, ShellCheck, and shfmt where they apply.
+edit can still fail it. Freeze new spec decisions the same way.
 
 Documentation-only edits do not need a test run unless they change command
 names, file paths, or documented test expectations.
