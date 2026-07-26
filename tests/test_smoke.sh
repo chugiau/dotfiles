@@ -2868,6 +2868,37 @@ else
 fi
 echo ""
 
+# ── Agent context layering (spec 048) ──────────────────────────────────────
+echo "[agent context layering]"
+# AGENTS.md carries always-loaded gotchas; procedural depth lives in
+# repo-scoped skills that Claude loads on demand.
+for _skill in spec-driven-change chezmoi-source-tree dotfiles-test-suite \
+    claude-statusline; do
+    _skill_file=".claude/skills/${_skill}/SKILL.md"
+    check_exists "$_skill_file"
+    if [ -f "$SCRIPT_DIR/$_skill_file" ]; then
+        if head -1 "$SCRIPT_DIR/$_skill_file" | grep -q '^---$' &&
+            grep -q "^name: ${_skill}$" "$SCRIPT_DIR/$_skill_file" &&
+            grep -q '^description:' "$SCRIPT_DIR/$_skill_file"; then
+            ok "$_skill_file has name/description frontmatter"
+        else
+            fail "$_skill_file is missing name/description frontmatter"
+        fi
+    fi
+done
+if grep -q '@AGENTS.md' "$SCRIPT_DIR/CLAUDE.md" &&
+    grep -q '\.claude/skills' "$SCRIPT_DIR/CLAUDE.md"; then
+    ok "CLAUDE.md includes AGENTS.md and points at the repo skills"
+else
+    fail "CLAUDE.md does not layer AGENTS.md plus the repo skills"
+fi
+if grep -q '\.claude/' "$SCRIPT_DIR/AGENTS.md"; then
+    fail "AGENTS.md references Claude-only paths; keep it tool-agnostic"
+else
+    ok "AGENTS.md stays tool-agnostic (no .claude/ paths)"
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
