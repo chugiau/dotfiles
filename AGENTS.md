@@ -1,55 +1,52 @@
 # Agent Guidelines — dotfiles
 
-This file is for repo-specific agent behavior. Read the relevant files for
-implementation details instead of treating this as a README.
+Personal cross-platform dotfiles: chezmoi renders `home/` into `$HOME`, mise
+manages the CLI toolchain, and POSIX sh plus PowerShell wrappers drive the rest.
+
+This file covers what is easy to get wrong here. Read the files themselves for
+implementation details, `README.md` for the architecture guide, and `specs/` for
+why a decision is what it is.
 
 ## Required Workflow
 
-1. **SDD first.** For non-trivial changes, write/update `specs/NNN-slug.md`
-   before tests or code. Template: `## Intent`, `## Acceptance criteria`,
-   `## Out of scope`, `## Affected files`. Trivial fixes may put `Spec:` in the
-   commit body.
-2. **TDD only for code.** Feature/code changes use Red -> Green -> Refactor
-   from the spec. Documentation-only changes and other non-code work do not
-   require TDD.
-3. **Spec wins.** If a spec, test, and implementation disagree, update the test
-   and implementation to match the spec, or edit the spec first when behavior
-   should change.
-4. **Commit each logical unit.** Commit proactively. Spec, test, and
+1. **Spec first.** Non-trivial changes get a `specs/NNN-slug.md` with
+   `## Intent`, `## Acceptance criteria`, `## Out of scope`, `## Affected
+   files`; the newest specs are the reference for depth and tone. Trivial fixes
+   may put `Spec:` in the commit body instead.
+2. **TDD for code only.** Feature and code changes run Red -> Green -> Refactor
+   from the spec. Documentation and other non-code work does not.
+3. **The spec is the tiebreaker.** When spec, test, and implementation disagree,
+   change the test and implementation — or edit the spec first when the behavior
+   itself should change.
+4. **Commit each logical unit.** Commit proactively; spec, test, and
    implementation edits may be separate commits.
-5. **English artifacts.** Code, comments, docs, specs, and commits are English.
-   User conversation is the only exception.
+5. **Artifacts are English.** Code, comments, docs, specs, commits. Only the
+   conversation with the user follows their language.
 
-## Core Commands
+## Commands And Tests
 
-`sh bootstrap.sh`, `dotfiles install`, `dotfiles update`, `dotfiles link`,
-`dotfiles check`, `dotfiles doctor`, `dotfiles test`, `sh tests/test_smoke.sh`,
-`bats tests/bats`. On native Windows use `pwsh -NoProfile -File bootstrap.ps1`,
-`pwsh -NoProfile -File bin/dotfiles.ps1 test`, and
-`pwsh -NoProfile -File tests/windows_smoke.ps1`.
+`dotfiles test` is the local gate: it runs `tests/test_smoke.sh` plus
+`bats tests/bats` (Bats runs under Bash). Other entrypoints are
+`sh bootstrap.sh` and `dotfiles install|update|link|check|doctor`. Native
+Windows uses `pwsh -NoProfile -File bootstrap.ps1` and
+`pwsh -NoProfile -File bin/dotfiles.ps1 test`, which runs
+`tests/windows_smoke.ps1` and skips POSIX and Bats checks when `sh` or `bats`
+are missing.
 
-## Repo Map
+`tests/test_smoke.sh` is more than a smoke test: project decisions are frozen
+there as grep, parse, and rendered-template assertions, so a seemingly unrelated
+edit can still fail it. Freeze new spec decisions the same way, and pair Bats
+with `sh -n`, `zsh -n`, ShellCheck, and shfmt where they apply.
 
-- `bootstrap.sh`: POSIX sh bootstrap; installs prereqs, chezmoi, mise, clones
-  this repo, writes chezmoi config, runs `chezmoi apply`.
-- `bootstrap.ps1`: native Windows bootstrap; uses winget for Git, chezmoi, and
-  mise, writes chezmoi config, runs `chezmoi apply`.
-- `.chezmoiroot`: points chezmoi at `home/`.
-- `home/`: chezmoi source tree, materialized into `$HOME`.
-- `bin/dotfiles`: POSIX sh CLI wrapper.
-- `bin/dotfiles.ps1`: native Windows PowerShell CLI wrapper.
-- `home/dot_config/mise/config.toml`: mise-managed CLI tool manifest.
-- `home/dot_config/dotfiles/modules/`: source for shell modules deployed to
-  `$DOTFILES/modules/`.
-- `home/dot_claude/`, `home/dot_codex/`: managed Claude/Codex hooks and config.
-- `tests/test_smoke.sh`: main regression suite; many project decisions are
-  encoded as grep/parse/render assertions.
+Documentation-only edits do not need a test run unless they change command
+names, file paths, or documented test expectations.
 
 ## Easy-To-Guess-Wrong Conventions
 
 - **Runtime/source split:** `$DOTFILES_REPO=~/.dotfiles`; `$DOTFILES=~/.config/dotfiles`.
   Shell startup sources `$DOTFILES`, not repo files. Edit
-  `home/dot_config/dotfiles/`, then run `dotfiles link` or `chezmoi apply`.
+  `home/dot_config/dotfiles/` — shell modules live in its `modules/` — then run
+  `dotfiles link` or `chezmoi apply`.
 - **Windows runtime split:** PowerShell loads
   `~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1`, which only sources
   `$HOME/.config/dotfiles/powershell/profile.ps1`. Keep Windows startup logic in
@@ -58,6 +55,8 @@ implementation details instead of treating this as a README.
   Put login side effects in `dot_zprofile`; interactive setup in `dot_zshrc`.
 - **BROWSER is apply-time:** `dot_zshenv.tmpl` renders `open`, `wslview`, or
   `xdg-open`; do not add per-shell detection.
+- **CLI tools come from mise:** add them to
+  `home/dot_config/mise/config.toml`, with the exceptions below.
 - **mise PATH order matters:** bun/dotnet fallback blocks append to `PATH`.
   `mise activate zsh` stays after them; `direnv hook zsh` stays after mise.
 - **Neovim is not mise-managed:** `run_onchange_after_15-neovim.sh.tmpl`
@@ -87,14 +86,3 @@ implementation details instead of treating this as a README.
 - **Windows chezmoi split:** `home/.chezmoiignore` keeps Unix run scripts out of
   native Windows applies and keeps Windows PowerShell files out of Unix applies.
   Update it when adding platform-specific run scripts.
-
-## Testing Notes
-
-- `dotfiles test` is the full local entrypoint; `tests/test_smoke.sh` is the
-  main suite for structure, rendered templates, parse gates, and spec decisions.
-- On native Windows, `bin/dotfiles.ps1 test` runs `tests/windows_smoke.ps1` and
-  skips POSIX/Bats checks when `sh` or `bats` are not installed.
-- Bats runs under Bash; pair it with `sh -n`, rendered template checks, `zsh -n`,
-  ShellCheck, and shfmt where relevant.
-- Documentation-only AGENTS edits do not need a test run unless they change
-  command names, file paths, or documented test expectations.
