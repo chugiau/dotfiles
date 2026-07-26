@@ -2899,6 +2899,56 @@ else
 fi
 echo ""
 
+# ── Agent skills configuration (spec 049) ───────────────────────────────────
+# The engineering skills read their per-repo contract from docs/agents/ rather
+# than guessing; CLAUDE.md carries the pointers because only Claude runs them.
+echo "[agent skills config]"
+_tracker="docs/agents/issue-tracker.md"
+_labels="docs/agents/triage-labels.md"
+_domain="docs/agents/domain.md"
+for _f in "$_tracker" "$_labels" "$_domain"; do
+    check_exists "$_f"
+done
+if grep -q 'GitHub Issues' "$SCRIPT_DIR/$_tracker" 2>/dev/null &&
+    grep -q 'gh issue create' "$SCRIPT_DIR/$_tracker" 2>/dev/null; then
+    ok "$_tracker declares GitHub Issues driven by the gh CLI"
+else
+    fail "$_tracker does not declare GitHub Issues driven by the gh CLI"
+fi
+if grep -q 'PRs as a request surface: no' "$SCRIPT_DIR/$_tracker" 2>/dev/null; then
+    ok "$_tracker keeps external PRs out of the triage queue"
+else
+    fail "$_tracker does not default the PR triage flag to no"
+fi
+for _label in needs-triage needs-info ready-for-agent ready-for-human wontfix; do
+    if grep -q "$_label" "$SCRIPT_DIR/$_labels" 2>/dev/null; then
+        ok "$_labels maps $_label"
+    else
+        fail "$_labels does not map $_label"
+    fi
+done
+if grep -q 'single-context' "$SCRIPT_DIR/$_domain" 2>/dev/null &&
+    grep -q 'CONTEXT\.md' "$SCRIPT_DIR/$_domain" 2>/dev/null &&
+    grep -q 'docs/adr/' "$SCRIPT_DIR/$_domain" 2>/dev/null; then
+    ok "$_domain declares the single-context CONTEXT.md plus docs/adr layout"
+else
+    fail "$_domain does not declare the single-context layout"
+fi
+if grep -q 'specs/' "$SCRIPT_DIR/$_domain" 2>/dev/null; then
+    ok "$_domain keeps specs/ as the authority for in-repo proposals"
+else
+    fail "$_domain does not keep specs/ as the authority"
+fi
+if grep -q '^## Agent skills$' "$SCRIPT_DIR/CLAUDE.md" &&
+    grep -q "$_tracker" "$SCRIPT_DIR/CLAUDE.md" &&
+    grep -q "$_labels" "$SCRIPT_DIR/CLAUDE.md" &&
+    grep -q "$_domain" "$SCRIPT_DIR/CLAUDE.md"; then
+    ok "CLAUDE.md points at all three agent skills config files"
+else
+    fail "CLAUDE.md does not point at the agent skills config files"
+fi
+echo ""
+
 # ── Summary ─────────────────────────────────────────────────────────────────
 echo "Result: $OK ok, $FAIL failed"
 [ "$FAIL" -eq 0 ]
